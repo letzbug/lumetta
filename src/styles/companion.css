@@ -1,0 +1,273 @@
+/* ─────────────────────────────────────────────────────────────
+   The light companion
+   Layers: halo (air) · glow (body of light) · core (heart) ·
+   glints (a hint of attention) · orbit (thinking) · burst (joy)
+   --level (0..1) is written by JS while narrating.
+   ───────────────────────────────────────────────────────────── */
+.companion {
+  --size: 120px;
+  --level: 0;
+  --glow: 1;
+  --glints: 1;
+  --gx: 0;
+  --gy: 0;
+  --float-y: -7%;
+  --float-dur: 7s;
+  position: relative;
+  width: var(--size);
+  height: var(--size);
+  flex: none;
+  isolation: isolate;
+}
+
+.companion__float {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  animation: c-float var(--float-dur) var(--ease-in-out) infinite;
+}
+
+.companion__halo {
+  position: absolute;
+  width: 280%;
+  height: 280%;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 196, 102, 0.3) 0%, rgba(255, 186, 90, 0.12) 32%, rgba(255, 186, 90, 0) 62%);
+  transform: scale(calc(var(--glow) * (0.92 + var(--level) * 0.3)));
+  transition: transform 140ms linear, opacity var(--t-med) ease;
+  animation: c-breathe 5.2s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.companion__glow {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 226, 160, 0.95) 0%, rgba(255, 190, 96, 0.55) 30%, rgba(255, 170, 70, 0) 68%);
+  transform: scale(calc(var(--glow) * (0.86 + var(--level) * 0.34)));
+  transition: transform 120ms linear;
+  animation: c-breathe 5.2s ease-in-out infinite;
+}
+
+.companion__core {
+  position: absolute;
+  width: 40%;
+  height: 40%;
+  border-radius: 52% 48% 50% 50% / 50% 52% 48% 50%;
+  background: radial-gradient(circle at 38% 34%, #fffdf5 0%, #ffecbd 26%, #ffc469 62%, #f39b3b 100%);
+  box-shadow:
+    0 0 calc(var(--size) * 0.12) rgba(255, 214, 140, 0.95),
+    0 0 calc(var(--size) * 0.42) rgba(255, 170, 70, 0.5);
+  transform: scale(calc(1 + var(--level) * 0.14));
+  transition: transform 120ms linear;
+  animation: c-morph 11s ease-in-out infinite;
+}
+
+/* two barely-there glints – attention, not a face */
+.companion__glint {
+  position: absolute;
+  top: 40%;
+  width: 7%;
+  height: 12%;
+  border-radius: 50%;
+  background: rgba(150, 82, 22, 0.26);
+  transform: translate(calc(var(--gx) * 22%), calc(var(--gy) * 18%)) scaleY(var(--glints));
+  transition: transform 600ms var(--ease-out);
+  animation: c-blink 7s ease-in-out infinite;
+}
+.companion__glint--l {
+  left: 33%;
+}
+.companion__glint--r {
+  right: 33%;
+}
+
+/* ── thinking: particles orbit on a tilted ellipse ─────────── */
+.companion__orbit {
+  position: absolute;
+  inset: 0;
+  transform: scaleY(0.42) rotate(-8deg);
+  pointer-events: none;
+}
+.companion__orbit span {
+  --a: calc(var(--i) / var(--n) * 360deg);
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 6%;
+  height: 6%;
+  margin: -3%;
+  border-radius: 50%;
+  background: #ffe6b0;
+  box-shadow: 0 0 10px rgba(255, 210, 130, 0.9);
+  animation: c-orbit 3.8s linear infinite, c-twinkle 1.9s ease-in-out infinite;
+  animation-delay: 0s, calc(var(--i) * -0.3s);
+}
+
+/* ── ready / success: one sparkle ──────────────────────────── */
+.companion__burst span {
+  --a: calc(var(--i) * 36deg);
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 5%;
+  height: 5%;
+  margin: -2.5%;
+  border-radius: 50%;
+  background: #fff1cc;
+  box-shadow: 0 0 8px rgba(255, 220, 150, 1);
+  opacity: 0;
+  animation: c-burst 1.25s var(--ease-out) forwards;
+  animation-delay: calc(var(--i) * 18ms);
+}
+
+/* ── states ────────────────────────────────────────────────── */
+.companion[data-state='listening'] {
+  --float-y: -4%;
+  --float-dur: 9s;
+}
+.companion[data-state='thinking'] {
+  --float-y: -5%;
+  --float-dur: 5s;
+}
+.companion[data-state='thinking'] .companion__core {
+  animation: c-morph 3.2s ease-in-out infinite;
+}
+.companion[data-state='ready'] .companion__core,
+.companion[data-state='success'] .companion__core {
+  animation: c-pop 900ms var(--ease-spring);
+}
+.companion[data-state='speaking'] {
+  --float-y: -3%;
+  --float-dur: 10s;
+}
+.companion[data-state='speaking'] .companion__glow,
+.companion[data-state='speaking'] .companion__halo {
+  animation: none;
+}
+.companion[data-state='paused'] .companion__float {
+  animation-play-state: paused;
+}
+.companion[data-state='paused'] .companion__halo {
+  opacity: 0.55;
+}
+.companion[data-state='paused'] .companion__glow,
+.companion[data-state='paused'] .companion__core {
+  animation-duration: 9s;
+  filter: saturate(0.85);
+}
+.companion[data-state='success'] .companion__float {
+  animation: c-hop 900ms var(--ease-spring), c-float var(--float-dur) var(--ease-in-out) 900ms infinite;
+}
+
+@keyframes c-float {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  35% {
+    transform: translate3d(calc(2% * var(--travel)), calc(var(--float-y) * var(--travel)), 0);
+  }
+  70% {
+    transform: translate3d(calc(-2% * var(--travel)), calc(var(--float-y) * 0.4 * var(--travel)), 0);
+  }
+}
+@keyframes c-breathe {
+  0%,
+  100% {
+    opacity: 0.82;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+@keyframes c-morph {
+  0%,
+  100% {
+    border-radius: 52% 48% 50% 50% / 50% 52% 48% 50%;
+  }
+  33% {
+    border-radius: 48% 52% 46% 54% / 54% 46% 52% 48%;
+  }
+  66% {
+    border-radius: 54% 46% 52% 48% / 47% 53% 49% 51%;
+  }
+}
+@keyframes c-blink {
+  0%,
+  44%,
+  48%,
+  100% {
+    opacity: 1;
+  }
+  46% {
+    opacity: 0;
+  }
+}
+@keyframes c-orbit {
+  from {
+    transform: rotate(var(--a)) translateX(calc(var(--size) * 0.66)) rotate(calc(var(--a) * -1));
+  }
+  to {
+    transform: rotate(calc(var(--a) + 360deg)) translateX(calc(var(--size) * 0.66)) rotate(calc(var(--a) * -1 - 360deg));
+  }
+}
+@keyframes c-twinkle {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+@keyframes c-burst {
+  0% {
+    opacity: 1;
+    transform: rotate(var(--a)) translateX(calc(var(--size) * 0.2)) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: rotate(var(--a)) translateX(calc(var(--size) * 0.95)) scale(0.2);
+  }
+}
+@keyframes c-pop {
+  0% {
+    transform: scale(1);
+  }
+  40% {
+    transform: scale(1.28);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+@keyframes c-hop {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  40% {
+    transform: translateY(calc(-14% * var(--travel)));
+  }
+}
+
+/* ── calm mode: no travelling, the light still breathes ────── */
+:root[data-motion='reduced'] .companion__float,
+:root[data-motion='reduced'] .companion[data-state='success'] .companion__float {
+  animation: none;
+}
+:root[data-motion='reduced'] .companion__core {
+  animation: none;
+}
+:root[data-motion='reduced'] .companion__orbit span {
+  animation: c-twinkle 2.4s ease-in-out infinite;
+  animation-delay: calc(var(--i) * -0.4s);
+  transform: rotate(var(--a)) translateX(calc(var(--size) * 0.66));
+}
+:root[data-motion='reduced'] .companion__burst span {
+  animation: c-twinkle 1.2s ease-in-out 1;
+  transform: rotate(var(--a)) translateX(calc(var(--size) * 0.6));
+}

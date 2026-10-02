@@ -1,0 +1,49 @@
+{
+  "$comment": "CENTRAL STORY GUIDANCE CONFIGURATION. Educational specialists can edit this file without touching application code. It is read by the browser (theme list, demo engine) AND by the server (prompt construction for real story generation). Bump `version` on every change.",
+  "version": "1.0.0",
+  "status": "draft – pending specialist review",
+  "reviewedBy": [],
+  "corePrinciples": [
+    "The child's interests are the doorway. The adventure comes first; the guidance theme stays gently underneath.",
+    "The story is an enjoyable story first. It must never read like a lesson, a worksheet or a correction.",
+    "Never address the child as someone with a problem. Never diagnose, label or pathologise.",
+    "Show, don't tell: use modelling, metaphor, gentle problem solving and small, realistic successes.",
+    "A supporting character may experience the difficulty, so the child can recognise it from a safe distance.",
+    "Feelings are named simply and accepted. No feeling is wrong.",
+    "Endings are emotionally positive but believable: a first step, not a miracle transformation.",
+    "Nothing frightening, shaming or age-inappropriate. Tension is gentle and always resolved."
+  ],
+  "narrativeTechniques": [
+    "modelling: a character shows a small, concrete way to approach the situation",
+    "metaphor: the theme appears as part of the world (a wobbly bridge, a gap in a marble run)",
+    "gentle problem solving: characters try, pause, and try again in small steps",
+    "emotional recognition: a body feeling is described (tingly tummy, feet that stay still)",
+    "positive experience: the attempt is rewarded by connection or joy, not by praise"
+  ],
+  "forbiddenPhrasing": {
+    "$comment": "Used in prompt instructions and to lint generated text (case-insensitive).",
+    "en": ["you need to", "you have a problem", "you suffer from", "you should behave", "the lesson is", "the moral of the story"],
+    "de": ["du musst dich", "du hast ein problem", "du leidest", "du solltest dich benehmen", "die moral von der geschicht", "die lehre daraus"],
+    "fr": ["tu dois te", "tu as un problème", "tu souffres", "tu devrais te comporter", "la morale de cette histoire", "la leçon est"]
+  },
+  "themes": [
+    { "id": "confidence", "family": "courage", "storyApproach": "A character faces something that looks bigger than it is and discovers it can be done one small step at a time." },
+    { "id": "makingFriends", "family": "contact", "storyApproach": "A character watches, finds a shared interest and offers something small, which opens the door to play." },
+    { "id": "talkingToOthers", "family": "contact", "storyApproach": "A character wants to join others but the words hide. Watching first, then a small gesture, then one word creates contact naturally." },
+    { "id": "tryingNew", "family": "courage", "storyApproach": "Something unfamiliar wobbles at first; trying just the first part reveals it is also fun." },
+    { "id": "handlingMistakes", "family": "mistakes", "storyApproach": "An accident happens; others react kindly, share their own mishaps, and the repair becomes something new and even better." },
+    { "id": "beingPatient", "family": "together", "storyApproach": "Waiting becomes part of the fun: taking turns lets everyone enjoy each moment." },
+    { "id": "understandingEmotions", "family": "contact", "storyApproach": "Feelings are noticed in the body and named simply; a companion understands without needing many words." },
+    { "id": "askingForHelp", "family": "together", "storyApproach": "A task is too big alone; asking 'can we help?' turns it into a shared success." },
+    { "id": "workingTogether", "family": "together", "storyApproach": "Everyone pushes alone and nothing moves; a shared rhythm makes it possible." },
+    { "id": "feelingDifferent", "family": "contact", "storyApproach": "A character's different way (a sound, a size, a habit) turns out to be exactly what the group needed." },
+    { "id": "newEnvironments", "family": "courage", "storyApproach": "A new place feels big and strange; looking around from a safe spot and one small step make it familiar." },
+    { "id": "school", "family": "courage", "storyApproach": "A group setting with routines feels new; a small brave step and a friendly face make a place to belong." },
+    { "id": "listening", "family": "together", "storyApproach": "When everyone talks at once nothing works; pausing to listen reveals the solution." },
+    { "id": "takingTurns", "family": "together", "storyApproach": "Taking turns turns a crowd into a game where every turn can be watched and enjoyed." }
+  ],
+  "customGuidance": {
+    "maxLength": 300,
+    "instructions": "The parent described a situation in their own words. Translate it into a gentle story element following all core principles. Never repeat the parent's wording to the child, never name a condition, never imply something is wrong with the child."
+  }
+}

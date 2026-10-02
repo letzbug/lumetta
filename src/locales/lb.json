@@ -1,0 +1,7 @@
+{
+  "_meta": {
+    "language": "Lëtzebuergesch",
+    "status": "prepared",
+    "note": "Luxembourgish is wired into the architecture. Add translated keys here (same structure as en.json); every missing key falls back to German (see config/languages.ts). Enable the language by setting uiEnabled/storyEnabled in config/languages.ts once translations and a quality narration voice are reviewed."
+  }
+}

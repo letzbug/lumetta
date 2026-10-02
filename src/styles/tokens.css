@@ -1,0 +1,74 @@
+/* ─────────────────────────────────────────────────────────────
+   Lumetta design tokens
+   Two surfaces: DUSK (the light's world – landing, creation
+   moment, player) and DAWN (the parent's calm workspace).
+   ───────────────────────────────────────────────────────────── */
+:root {
+  /* colour */
+  --ink: #1d2742;
+  --ink-soft: #4a5371;
+  --ink-faint: #7a8098;
+  --paper: #f8efe9;
+  --paper-2: #f0e2d9;
+  --card: #fffaf6;
+  --dusk-1: #141e38;
+  --dusk-2: #22325c;
+  --dusk-3: #3a4c7f;
+  --moon: #fff4e4;
+  --moon-soft: rgba(255, 244, 228, 0.74);
+  --amber: #ffb54d;
+  --amber-deep: #e5852a;
+  --amber-glow: rgba(255, 181, 77, 0.55);
+  --lagoon: #2a8a8c;
+  --moss: #5f8f5f;
+  --rose: #e2756f;
+  --line: rgba(29, 39, 66, 0.13);
+  --line-light: rgba(255, 244, 228, 0.2);
+  --danger: #b2433a;
+
+  /* type */
+  --font-story: 'Literata', 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif;
+  --font-ui: 'Atkinson Hyperlegible', 'Segoe UI', system-ui, -apple-system, Roboto, sans-serif;
+  --step--1: clamp(0.86rem, 0.84rem + 0.1vw, 0.92rem);
+  --step-0: clamp(1rem, 0.97rem + 0.15vw, 1.08rem);
+  --step-1: clamp(1.15rem, 1.1rem + 0.3vw, 1.3rem);
+  --step-2: clamp(1.35rem, 1.25rem + 0.6vw, 1.7rem);
+  --step-3: clamp(1.75rem, 1.5rem + 1.3vw, 2.6rem);
+  --step-4: clamp(2.25rem, 1.7rem + 2.8vw, 4.4rem);
+
+  /* shape – deliberately not one radius for everything */
+  --r-s: 10px;
+  --r-m: 18px;
+  --r-l: 28px;
+  --r-book: 6px 18px 18px 6px;
+  --r-pill: 999px;
+
+  /* depth: tactile paper, not glass */
+  --lift-1: 0 1px 0 rgba(255, 255, 255, 0.8) inset, 0 1px 2px rgba(29, 39, 66, 0.08), 0 8px 20px -14px rgba(29, 39, 66, 0.35);
+  --lift-2: 0 1px 0 rgba(255, 255, 255, 0.8) inset, 0 2px 4px rgba(29, 39, 66, 0.08), 0 18px 36px -20px rgba(29, 39, 66, 0.45);
+  --lift-book: 0 2px 4px rgba(10, 14, 30, 0.25), 0 24px 48px -18px rgba(10, 14, 30, 0.65);
+
+  /* motion */
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-in-out: cubic-bezier(0.45, 0, 0.25, 1);
+  --ease-spring: cubic-bezier(0.34, 1.5, 0.64, 1);
+  --t-fast: 160ms;
+  --t-med: 320ms;
+  --t-slow: 680ms;
+  --travel: 1; /* multiplier for movement distance; 0 in calm mode */
+
+  --focus: var(--ink);
+  --space-page: clamp(18px, 4vw, 56px);
+  --tabbar-h: 0px;
+}
+
+:root[data-surface='dusk'] {
+  --focus: #ffd38a;
+}
+
+/* Calm mode: soft fades and glow stay, travelling movement goes */
+:root[data-motion='reduced'] {
+  --t-med: 200ms;
+  --t-slow: 320ms;
+  --travel: 0;
+}

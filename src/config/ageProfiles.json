@@ -1,0 +1,30 @@
+{
+  "$comment": "Age bands steer vocabulary, sentence length and emotional complexity. Editable by specialists. wpm = calm narration speed used to estimate duration.",
+  "targetDurationSeconds": [180, 240],
+  "bands": [
+    {
+      "id": "little", "minAge": 3, "maxAge": 5,
+      "wordsTarget": [330, 430], "wpm": 115, "ttsRate": 0.86,
+      "sentenceLength": "very short sentences (4–9 words)",
+      "vocabulary": "concrete everyday words, sound words, gentle repetition and a small refrain",
+      "emotionalComplexity": "one clear feeling at a time, named simply (happy, shy, brave)",
+      "structure": "linear, one small problem, a cosy and safe ending"
+    },
+    {
+      "id": "middle", "minAge": 6, "maxAge": 8,
+      "wordsTarget": [450, 560], "wpm": 140, "ttsRate": 0.92,
+      "sentenceLength": "short to medium sentences (6–14 words)",
+      "vocabulary": "rich but clear words, playful invented names, some descriptive language",
+      "emotionalComplexity": "mixed feelings allowed (excited and nervous), shown through body sensations",
+      "structure": "a journey, a small obstacle, a turning point, a believable warm ending"
+    },
+    {
+      "id": "older", "minAge": 9, "maxAge": 12,
+      "wordsTarget": [520, 640], "wpm": 155, "ttsRate": 0.97,
+      "sentenceLength": "varied sentences, some longer with clauses",
+      "vocabulary": "vivid, precise vocabulary; light humour and wordplay",
+      "emotionalComplexity": "inner thoughts, perspective-taking, nuance without heaviness",
+      "structure": "a clear arc with a twist, characters who change a little, reflective but not preachy ending"
+    }
+  ]
+}

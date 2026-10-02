@@ -1,0 +1,285 @@
+{
+  "_meta": {
+    "language": "Français",
+    "status": "complete"
+  },
+  "common": {
+    "appName": "Lumetta",
+    "back": "Retour",
+    "next": "Continuer",
+    "close": "Fermer",
+    "optional": "Facultatif",
+    "minutes": "{n} min",
+    "years": "{n} ans"
+  },
+  "nav": {
+    "home": "Accueil",
+    "create": "Nouvelle histoire",
+    "library": "Nos histoires",
+    "settings": "Réglages",
+    "main": "Navigation principale"
+  },
+  "landing": {
+    "headline": "Chaque enfant a une histoire qui attend d'être racontée.",
+    "sub": "Dites-nous ce qu'il aime. Nous en ferons une aventure.",
+    "cta": "Créer une histoire",
+    "secondary": "Nos histoires",
+    "promise1": "Environ quatre minutes, lues à voix haute",
+    "promise2": "Sans inscription",
+    "promise3": "Reste sur cet appareil",
+    "privacyLink": "Comment nous protégeons la vie privée de votre enfant"
+  },
+  "create": {
+    "stepOf": "Étape {current} sur {total}",
+    "progressLabel": "Envies d'histoire",
+    "child": {
+      "title": "Pour qui est cette histoire ?",
+      "ageLabel": "Quel âge ?",
+      "ageUnit": "{n} ans",
+      "nameLabel": "Prénom",
+      "namePlaceholder": "p. ex. Léo",
+      "nameHint": "Seulement si vous le souhaitez. Il reste sur cet appareil.",
+      "genderLabel": "Dans l'histoire, c'est",
+      "gender": {
+        "girl": "une fille",
+        "boy": "un garçon",
+        "neutral": "pas de préférence"
+      }
+    },
+    "interests": {
+      "title": "Qu'est-ce qu'il ou elle aime ?",
+      "sub": "Écrivez librement ou choisissez quelques portes d'entrée dans l'histoire.",
+      "placeholder": "Les dinosaures, les fusées, les pirates et l'exploration…",
+      "inputLabel": "Ce que votre enfant aime",
+      "chipsLabel": "Idées"
+    },
+    "mood": {
+      "title": "Quel genre d'histoire ?"
+    },
+    "guidance": {
+      "title": "Souhaitez-vous que l'histoire explore doucement quelque chose ?",
+      "sub": "Les histoires peuvent aider les enfants à découvrir des situations, des émotions et de nouvelles façons de penser.",
+      "none": "Juste une histoire",
+      "custom": "Autre chose",
+      "customLabel": "Avec vos propres mots",
+      "customPlaceholder": "p. ex. Mon enfant a du mal à aller vers les autres enfants.",
+      "customHint": "Utilisé uniquement pour cette histoire. Jamais enregistré.",
+      "note": "L'accompagnement d'histoire façonne l'aventure en douceur. Ce n'est ni un diagnostic ni une thérapie, et il ne remplace pas un soutien professionnel.",
+      "storyLanguage": "Racontée en",
+      "voice": "Conteur"
+    },
+    "submit": "Créer l'histoire",
+    "validation": {
+      "age": "Choisissez un âge pour continuer.",
+      "interests": "Ajoutez au moins une chose que votre enfant aime.",
+      "mood": "Choisissez un genre d'histoire."
+    }
+  },
+  "support": {
+    "title": "Cela ressemble à quelque chose qu'une histoire ne peut pas porter seule.",
+    "body": "Ce que vous décrivez a peut-être besoin du soutien d'une personne de confiance. Vous n'avez pas à y faire face seul·e, et demander de l'aide est un bon pas.",
+    "resources": {
+      "emergency": {
+        "label": "Urgences",
+        "desc": "Si quelqu'un est en danger immédiat."
+      },
+      "childHelpline": {
+        "label": "Ligne d'écoute enfants et jeunes",
+        "desc": "Gratuite et confidentielle, pour les enfants et les jeunes."
+      },
+      "doctor": {
+        "label": "Votre pédiatre ou médecin de famille",
+        "desc": "Un bon premier interlocuteur, qui connaît d'autres aides."
+      }
+    },
+    "call": "Appeler le {phone}",
+    "verifyNote": "Prototype : ces contacts sont indicatifs et sont en cours de vérification avec des spécialistes locaux.",
+    "continueWithout": "Créer une histoire sans ce texte",
+    "edit": "Modifier mon texte"
+  },
+  "generating": {
+    "stages": {
+      "finding": "À la recherche d'une aventure…",
+      "characters": "Rencontre avec les personnages…",
+      "magic": "Une pincée de magie…",
+      "ready": "Votre histoire est prête."
+    },
+    "forName": "Une histoire pour {name}",
+    "forChild": "Une histoire pour un enfant de {age} ans",
+    "errorTitle": "Notre petite lumière a perdu l'histoire un instant.",
+    "errorBody": "Essayons encore une fois.",
+    "retry": "Réessayer",
+    "editWishes": "Modifier les envies",
+    "listen": "Écouter maintenant"
+  },
+  "player": {
+    "play": "Lecture",
+    "pause": "Pause",
+    "resume": "Reprendre",
+    "restart": "Recommencer",
+    "save": "Enregistrer l'histoire",
+    "saved": "Enregistrée",
+    "savedToast": "Enregistrée dans nos histoires",
+    "favorite": "Ajouter aux favoris",
+    "unfavorite": "Retirer des favoris",
+    "readAlong": "Lire en même temps",
+    "hideText": "Masquer le texte",
+    "progress": "Progression de l'histoire",
+    "timeOf": "{current} sur {total}",
+    "devicevoice": "Voix de démonstration de cet appareil",
+    "silent": "Il n'y a pas encore de voix de conteur pour cette langue sur cet appareil. Les mots avancent tout seuls.",
+    "loading": "Le conteur se prépare…",
+    "jumpHint": "Touchez une phrase pour reprendre à cet endroit.",
+    "forName": "Pour {name}",
+    "notFoundTitle": "Cette histoire n'est pas ici.",
+    "notFoundBody": "Elle a peut-être été supprimée, ou enregistrée sur un autre appareil.",
+    "newStory": "Créer une autre histoire",
+    "toLibrary": "Nos histoires",
+    "unsavedLeave": "Cette histoire n’est pas encore enregistrée. Enregistrez-la pour la réécouter plus tard.",
+    "leave": "Partir sans enregistrer"
+  },
+  "library": {
+    "title": "Nos histoires",
+    "count_one": "{n} histoire",
+    "count_other": "{n} histoires",
+    "emptyTitle": "Votre première aventure vous attend.",
+    "emptyBody": "Les histoires enregistrées vivent ici, prêtes à être racontées encore et encore.",
+    "filterAll": "Toutes",
+    "filterFavorites": "Favoris",
+    "noFavorites": "Touchez le cœur dans une histoire pour la garder ici.",
+    "play": "Écouter {title}",
+    "favorite": "Favori",
+    "delete": "Supprimer",
+    "confirmDelete": "Supprimer « {title} » ?",
+    "confirmYes": "Supprimer",
+    "confirmNo": "Garder",
+    "deleted": "Histoire supprimée",
+    "created": "{date}"
+  },
+  "settings": {
+    "title": "Réglages",
+    "uiLanguage": "Langue de l'application",
+    "storyLanguage": "Les histoires sont racontées en",
+    "voice": "Voix du conteur",
+    "testVoice": "Écouter",
+    "testPhrase": "Il était une fois une petite lumière qui flottait dans la nuit et qui trouva une histoire.",
+    "motion": "Mouvement",
+    "motionSystem": "Comme mon appareil",
+    "motionReduced": "Calme",
+    "motionFull": "Complet",
+    "motionHint": "Calme garde les fondus doux et la lueur de la lumière, sans flotter ni voyager.",
+    "privacy": "Vie privée",
+    "about": "À propos"
+  },
+  "privacy": {
+    "title": "La vie privée de votre enfant, expliquée simplement",
+    "points": {
+      "account": {
+        "title": "Pas de compte",
+        "body": "Vous pouvez utiliser Lumetta sans inscription ni connexion."
+      },
+      "minimal": {
+        "title": "Seulement ce dont une histoire a besoin",
+        "body": "Un âge et ce que votre enfant aime. Le prénom est facultatif. Nous ne demandons jamais de nom de famille, d'anniversaire, d'école, d'adresse ou de photos."
+      },
+      "local": {
+        "title": "Les histoires restent sur cet appareil",
+        "body": "Les histoires enregistrées vivent uniquement dans ce navigateur, sur cet appareil. Rien n'est envoyé dans un cloud."
+      },
+      "names": {
+        "title": "Les prénoms restent à la maison",
+        "body": "Si un service de narration est connecté, le prénom est remplacé par un espace réservé avant que vos envies d’histoire ne quittent cet appareil. Votre propre description est utilisée une fois et jamais enregistrée. Seule l’histoire terminée est envoyée à la voix du conteur."
+      },
+      "control": {
+        "title": "Vous décidez",
+        "body": "Supprimez une histoire ou tout, quand vous le souhaitez."
+      }
+    },
+    "modeDemo": "Pour l'instant, tout est créé sur cet appareil. Aucune donnée ne le quitte.",
+    "modeLive": "Un service de narration est connecté. Seuls l'âge, les centres d'intérêt, le genre d'histoire et l'accompagnement sont partagés, sans le prénom.",
+    "deleteAll": "Supprimer toutes les histoires",
+    "deleteAllConfirm": "Supprimer toutes les histoires enregistrées de cet appareil ?",
+    "deletedAll": "Toutes les histoires ont été supprimées"
+  },
+  "about": {
+    "body": "Lumetta crée de courtes histoires illustrées qui commencent par ce qu'un enfant aime. C'est un prototype, conçu pour être exploré avec des parents, des enseignants et des spécialistes.",
+    "guidance": "Principes d'accompagnement d'histoire, version {v}",
+    "version": "Version {v}"
+  },
+  "languages": {
+    "lbSoon": "Lëtzebuergesch — bientôt disponible"
+  },
+  "voices": {
+    "warmFemale": "Voix féminine chaleureuse",
+    "warmFemaleDesc": "Douce et proche, comme une lecture sur le canapé",
+    "warmMale": "Voix masculine chaleureuse",
+    "warmMaleDesc": "Calme et grave, idéale pour s'endormir",
+    "neutral": "Conteur",
+    "neutralDesc": "Claire et posée, l'histoire mène"
+  },
+  "moods": {
+    "adventure": {
+      "label": "Aventure",
+      "desc": "Un voyage avec un moment courageux"
+    },
+    "funny": {
+      "label": "Drôle",
+      "desc": "Des rires et des surprises loufoques"
+    },
+    "calm": {
+      "label": "Calme",
+      "desc": "Lente, douce et tendre"
+    },
+    "magical": {
+      "label": "Magique",
+      "desc": "De petites merveilles partout"
+    },
+    "discovery": {
+      "label": "Découverte",
+      "desc": "Des questions curieuses, des choses nouvelles"
+    },
+    "bedtime": {
+      "label": "Bonne nuit",
+      "desc": "S'endort tout doucement"
+    },
+    "surprise": {
+      "label": "Surprenez-moi",
+      "desc": "La lumière choisit"
+    }
+  },
+  "interests": {
+    "dinosaurs": "Dinosaures",
+    "space": "Espace",
+    "animals": "Animaux",
+    "magic": "Magie",
+    "ocean": "Océan",
+    "adventure": "Aventure",
+    "nature": "Nature",
+    "science": "Sciences",
+    "music": "Musique",
+    "dragons": "Dragons",
+    "friendship": "Amitié",
+    "vehicles": "Véhicules"
+  },
+  "guidanceThemes": {
+    "confidence": "Confiance en soi",
+    "makingFriends": "Se faire des amis",
+    "talkingToOthers": "Parler aux autres enfants",
+    "tryingNew": "Essayer quelque chose de nouveau",
+    "handlingMistakes": "Faire face aux erreurs",
+    "beingPatient": "Être patient",
+    "understandingEmotions": "Comprendre ses émotions",
+    "askingForHelp": "Demander de l'aide",
+    "workingTogether": "Travailler ensemble",
+    "feelingDifferent": "Se sentir différent",
+    "newEnvironments": "Nouveaux lieux",
+    "school": "Situations à l'école",
+    "listening": "Écouter",
+    "takingTurns": "Chacun son tour"
+  },
+  "a11y": {
+    "companion": "Le compagnon d'histoire, une petite lumière chaleureuse",
+    "skip": "Aller au contenu",
+    "selected": "sélectionné"
+  }
+}

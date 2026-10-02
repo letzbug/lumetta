@@ -1,0 +1,285 @@
+{
+  "_meta": {
+    "language": "English",
+    "status": "complete"
+  },
+  "common": {
+    "appName": "Lumetta",
+    "back": "Back",
+    "next": "Continue",
+    "close": "Close",
+    "optional": "Optional",
+    "minutes": "{n} min",
+    "years": "{n} years"
+  },
+  "nav": {
+    "home": "Home",
+    "create": "New story",
+    "library": "Our stories",
+    "settings": "Settings",
+    "main": "Main navigation"
+  },
+  "landing": {
+    "headline": "Every child has a story waiting to be told.",
+    "sub": "Tell us what they love. We'll turn it into an adventure.",
+    "cta": "Create a story",
+    "secondary": "Our stories",
+    "promise1": "About four minutes, told aloud",
+    "promise2": "No account needed",
+    "promise3": "Stays on this device",
+    "privacyLink": "How we protect your child's privacy"
+  },
+  "create": {
+    "stepOf": "Step {current} of {total}",
+    "progressLabel": "Story wishes",
+    "child": {
+      "title": "Who is this story for?",
+      "ageLabel": "How old?",
+      "ageUnit": "{n} years old",
+      "nameLabel": "First name",
+      "namePlaceholder": "e.g. Leo",
+      "nameHint": "Only if you like. It stays on this device.",
+      "genderLabel": "In the story, they are",
+      "gender": {
+        "girl": "a girl",
+        "boy": "a boy",
+        "neutral": "no preference"
+      }
+    },
+    "interests": {
+      "title": "What do they love?",
+      "sub": "Write freely, or pick a few doorways into the story.",
+      "placeholder": "Dinosaurs, spaceships, pirates and exploring…",
+      "inputLabel": "Things your child loves",
+      "chipsLabel": "Ideas"
+    },
+    "mood": {
+      "title": "What kind of story?"
+    },
+    "guidance": {
+      "title": "Would you like the story to gently explore something?",
+      "sub": "Stories can help children discover situations, emotions and new ways of thinking.",
+      "none": "Just a story",
+      "custom": "Something else",
+      "customLabel": "In your own words",
+      "customPlaceholder": "e.g. My child finds it difficult to approach other children.",
+      "customHint": "Used only to shape this one story. It is never saved.",
+      "note": "Story guidance gently shapes the adventure. It is not a diagnosis or a therapy, and it doesn't replace professional support.",
+      "storyLanguage": "Told in",
+      "voice": "Storyteller"
+    },
+    "submit": "Create the story",
+    "validation": {
+      "age": "Choose an age to continue.",
+      "interests": "Add at least one thing they love.",
+      "mood": "Choose a kind of story."
+    }
+  },
+  "support": {
+    "title": "This sounds like something a story can't carry alone.",
+    "body": "What you described may need the support of a person you trust. You don't have to handle it on your own, and reaching out is a good step.",
+    "resources": {
+      "emergency": {
+        "label": "Emergency",
+        "desc": "If someone is in immediate danger."
+      },
+      "childHelpline": {
+        "label": "Children and youth helpline",
+        "desc": "Free and confidential, for children and young people."
+      },
+      "doctor": {
+        "label": "Your paediatrician or family doctor",
+        "desc": "A good first conversation, and they know where to find more help."
+      }
+    },
+    "call": "Call {phone}",
+    "verifyNote": "Prototype: contact details are for orientation and are being verified with local specialists.",
+    "continueWithout": "Create a story without this text",
+    "edit": "Change my text"
+  },
+  "generating": {
+    "stages": {
+      "finding": "Finding an adventure…",
+      "characters": "Meeting the characters…",
+      "magic": "Adding a little magic…",
+      "ready": "Your story is ready."
+    },
+    "forName": "A story for {name}",
+    "forChild": "A story for a {age}-year-old",
+    "errorTitle": "Our little light lost the story for a moment.",
+    "errorBody": "Let's try again.",
+    "retry": "Try again",
+    "editWishes": "Change the story wishes",
+    "listen": "Listen now"
+  },
+  "player": {
+    "play": "Play",
+    "pause": "Pause",
+    "resume": "Resume",
+    "restart": "Start again",
+    "save": "Save story",
+    "saved": "Saved",
+    "savedToast": "Saved in our stories",
+    "favorite": "Add to favourites",
+    "unfavorite": "Remove from favourites",
+    "readAlong": "Read along",
+    "hideText": "Hide text",
+    "progress": "Story progress",
+    "timeOf": "{current} of {total}",
+    "devicevoice": "Demo voice of this device",
+    "silent": "There is no storyteller voice for this language on this device yet. The words move along on their own.",
+    "loading": "The storyteller is getting ready…",
+    "jumpHint": "Tap a sentence to continue from there.",
+    "forName": "For {name}",
+    "notFoundTitle": "This story isn't here.",
+    "notFoundBody": "It may have been deleted, or it was saved on another device.",
+    "newStory": "Create another story",
+    "toLibrary": "Our stories",
+    "unsavedLeave": "This story isn’t saved yet. Save it to hear it again later.",
+    "leave": "Leave without saving"
+  },
+  "library": {
+    "title": "Our stories",
+    "count_one": "{n} story",
+    "count_other": "{n} stories",
+    "emptyTitle": "Your first adventure is waiting.",
+    "emptyBody": "Stories you save live here, ready to be told again and again.",
+    "filterAll": "All",
+    "filterFavorites": "Favourites",
+    "noFavorites": "Tap the heart in a story to keep it here.",
+    "play": "Play {title}",
+    "favorite": "Favourite",
+    "delete": "Delete",
+    "confirmDelete": "Delete “{title}”?",
+    "confirmYes": "Delete",
+    "confirmNo": "Keep",
+    "deleted": "Story deleted",
+    "created": "{date}"
+  },
+  "settings": {
+    "title": "Settings",
+    "uiLanguage": "App language",
+    "storyLanguage": "Stories are told in",
+    "voice": "Storyteller voice",
+    "testVoice": "Listen",
+    "testPhrase": "Once upon a time, a little light floated through the night and found a story.",
+    "motion": "Movement",
+    "motionSystem": "Like my device",
+    "motionReduced": "Calm",
+    "motionFull": "Full",
+    "motionHint": "Calm keeps soft fades and the glow of the light, without floating or travelling.",
+    "privacy": "Privacy",
+    "about": "About"
+  },
+  "privacy": {
+    "title": "Your child's privacy, simply explained",
+    "points": {
+      "account": {
+        "title": "No account",
+        "body": "You can use Lumetta without registering or logging in."
+      },
+      "minimal": {
+        "title": "Only what a story needs",
+        "body": "An age and what your child loves. The first name is optional. We never ask for a surname, birthday, school, address or photos."
+      },
+      "local": {
+        "title": "Stories stay on this device",
+        "body": "Saved stories live only in this browser, on this device. Nothing is uploaded to a cloud."
+      },
+      "names": {
+        "title": "Names stay home",
+        "body": "When a storytelling service is connected, the first name is replaced by a placeholder before your story wishes leave this device. Your own description is used once and never saved. Only the finished story is sent to the narration voice."
+      },
+      "control": {
+        "title": "You decide",
+        "body": "Delete a single story or everything, whenever you like."
+      }
+    },
+    "modeDemo": "Right now everything is created on this device. No data leaves it.",
+    "modeLive": "A storytelling service is connected. Only age, interests, story type and story guidance are shared, without the name.",
+    "deleteAll": "Delete all stories",
+    "deleteAllConfirm": "Delete all saved stories from this device?",
+    "deletedAll": "All stories deleted"
+  },
+  "about": {
+    "body": "Lumetta creates short, illustrated stories that start with what a child loves. It is a prototype, made to be explored together with parents, teachers and specialists.",
+    "guidance": "Story guidance principles, version {v}",
+    "version": "Version {v}"
+  },
+  "languages": {
+    "lbSoon": "Lëtzebuergesch — coming soon"
+  },
+  "voices": {
+    "warmFemale": "Warm female voice",
+    "warmFemaleDesc": "Soft and close, like reading on the sofa",
+    "warmMale": "Warm male voice",
+    "warmMaleDesc": "Calm and deep, good for bedtime",
+    "neutral": "Storyteller",
+    "neutralDesc": "Clear and even, lets the story lead"
+  },
+  "moods": {
+    "adventure": {
+      "label": "Adventure",
+      "desc": "A journey with a brave moment"
+    },
+    "funny": {
+      "label": "Funny",
+      "desc": "Giggles and silly surprises"
+    },
+    "calm": {
+      "label": "Calm",
+      "desc": "Slow, soft and gentle"
+    },
+    "magical": {
+      "label": "Magical",
+      "desc": "Little wonders everywhere"
+    },
+    "discovery": {
+      "label": "Discovery",
+      "desc": "Curious questions, new things"
+    },
+    "bedtime": {
+      "label": "Bedtime",
+      "desc": "Winds down to sleep"
+    },
+    "surprise": {
+      "label": "Surprise me",
+      "desc": "Let the light choose"
+    }
+  },
+  "interests": {
+    "dinosaurs": "Dinosaurs",
+    "space": "Space",
+    "animals": "Animals",
+    "magic": "Magic",
+    "ocean": "Ocean",
+    "adventure": "Adventure",
+    "nature": "Nature",
+    "science": "Science",
+    "music": "Music",
+    "dragons": "Dragons",
+    "friendship": "Friendship",
+    "vehicles": "Vehicles"
+  },
+  "guidanceThemes": {
+    "confidence": "Confidence",
+    "makingFriends": "Making friends",
+    "talkingToOthers": "Talking to other children",
+    "tryingNew": "Trying something new",
+    "handlingMistakes": "Handling mistakes",
+    "beingPatient": "Being patient",
+    "understandingEmotions": "Understanding feelings",
+    "askingForHelp": "Asking for help",
+    "workingTogether": "Working together",
+    "feelingDifferent": "Feeling different",
+    "newEnvironments": "New places",
+    "school": "School situations",
+    "listening": "Listening",
+    "takingTurns": "Taking turns"
+  },
+  "a11y": {
+    "companion": "The story companion, a small warm light",
+    "skip": "Skip to content",
+    "selected": "selected"
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "$comment": "Shown when the safety screen detects a situation that needs real support. MUST be verified by local specialists before any public use. Labels and descriptions live in the locale files (support.resources.*).",
+  "regions": {
+    "LU": [
+      { "id": "emergency", "phone": "112" },
+      { "id": "childHelpline", "phone": "116 111" },
+      { "id": "doctor", "phone": null }
+    ],
+    "default": [
+      { "id": "emergency", "phone": "112" },
+      { "id": "childHelpline", "phone": "116 111" },
+      { "id": "doctor", "phone": null }
+    ]
+  }
+}

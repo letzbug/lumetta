@@ -1,0 +1,10 @@
+{
+  "$comment": "Screening of parent-entered free text. If a SUPPORT term matches, the Story Guidance layer does not continue with that text: a story is not an adequate response to serious harm. The parent is gently shown where to find real help instead. Matching is accent- and case-insensitive and runs across all languages. Lists MUST be reviewed by child-protection specialists before launch.",
+  "version": "1.0.0",
+  "support": {
+    "en": ["abuse", "abused", "molest", "sexual", "touches him", "touches her", "touched him", "touched her", "beats him", "beats her", "hits him", "hits her", "self-harm", "self harm", "hurts himself", "hurts herself", "harm himself", "harm herself", "suicid", "kill himself", "kill herself", "wants to die", "want to die", "cutting himself", "cutting herself", "neglect", "violence at home", "domestic violence", "starving", "stopped eating"],
+    "de": ["missbrauch", "missbraucht", "sexuell", "angefasst", "schlagt ihn", "schlagt sie", "geschlagen", "verletzt sich", "selbstverletz", "ritzt", "ritzen", "suizid", "selbstmord", "umbringen", "will sterben", "nicht mehr leben", "vernachlassig", "gewalt zu hause", "hausliche gewalt", "isst nichts mehr", "hungert"],
+    "fr": ["abus", "agression", "attouchement", "sexuel", "le frappe", "la frappe", "battu", "se fait du mal", "se blesse", "automutil", "scarif", "suicid", "veut mourir", "se tuer", "negligence", "violence a la maison", "violence conjugale", "ne mange plus"],
+    "lb": []
+  }
+}

@@ -10,6 +10,7 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
   const api = createApiHandler(env);
   return {
+    base: '/lumetta/',
     plugins: [
       react(),
       {

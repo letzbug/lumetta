@@ -83,7 +83,7 @@ export type SettingId = 'space' | 'ocean' | 'forest';
 export type CreatureId = 'dino' | 'dragon' | 'otter';
 
 /** Dedicated cover compositions for Story Engine V2 demo stories. */
-export type CoverSubject = 'digger' | 'park' | 'cat' | 'crocodile';
+export type CoverSubject = 'digger' | 'park' | 'cat' | 'crocodile' | 'abstract';
 
 export interface CoverScene {
   setting: SettingId;
@@ -128,7 +128,8 @@ export interface Story extends GeneratedStory {
   /** Story Engine V2 metadata – optional so stories saved by V1 still load. */
   engine?: {
     version: 2;
-    kind: 'v2-remote' | 'v2-demo-fixture' | 'v2-demo-template';
+    /** 'v2-demo-fixture' | 'v2-demo-template' only appear in stories saved before the correction */
+    kind: 'v2-remote' | 'v2-demo-example' | 'v2-demo-fixture' | 'v2-demo-template';
     storyForm: string;
     fingerprint?: import('../services/storyEngine/schemas').StoryFingerprint;
     scenes?: import('../services/storyEngine/schemas').SceneSketch[];

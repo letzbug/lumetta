@@ -18,7 +18,7 @@ import { synthesize } from './providers/tts.mjs';
 
 const LIMITS = { story: 30, image: 30, tts: 60, llm: 400 }; // per client per hour – protects budgets
 // Story Engine V2 stages allowed through the LLM proxy (anything else is rejected)
-const ENGINE_STAGES = new Set(['interpreter', 'imagination', 'selector', 'architect', 'characters', 'guidance', 'writer', 'critic', 'fingerprint']);
+const ENGINE_STAGES = new Set(['plan', 'review', 'interpreter', 'imagination', 'selector', 'architect', 'characters', 'guidance', 'writer', 'critic', 'fingerprint']);
 const hits = new Map();
 
 function rateLimited(ip, kind) {
@@ -70,6 +70,13 @@ const clamp = (s, n) => (typeof s === 'string' ? s.slice(0, n) : undefined);
 
 export function createApiHandler(env = {}) {
   const cfg = resolveConfig(env);
+  // CORS – lets a static frontend (e.g. GitHub Pages) call a separately hosted API.
+  const allowedOrigins = String(env.ALLOWED_ORIGINS ?? process.env.ALLOWED_ORIGINS ?? '')
+    .split(',')
+    .map((o) => o.trim())
+    .filter(Boolean);
+  // Cost control: a cheaper model per stage, e.g. STORY_MODEL_PLAN / STORY_MODEL_WRITER / STORY_MODEL_REVIEW
+  const modelFor = (stage) => String(env[`STORY_MODEL_${stage.toUpperCase()}`] ?? process.env[`STORY_MODEL_${stage.toUpperCase()}`] ?? '').trim() || cfg.story.model;
   const caps = capabilities(cfg);
   console.log(`[lumetta-api] story:${caps.story ? cfg.story.provider : 'demo'} image:${caps.image ? cfg.image.provider : 'demo'} tts:${caps.tts ? cfg.tts.provider : 'browser'}`);
 
@@ -77,6 +84,17 @@ export function createApiHandler(env = {}) {
     const url = (req.url ?? '').split('?')[0];
     if (!url.startsWith('/api/')) return next ? next() : fail(res, 404, 'not_found');
     const ip = req.socket?.remoteAddress ?? 'unknown';
+    const origin = req.headers?.origin;
+    if (origin && allowedOrigins.includes(origin)) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Vary', 'Origin');
+      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    }
+    if (req.method === 'OPTIONS') {
+      res.statusCode = 204;
+      return res.end();
+    }
 
     try {
       if (req.method === 'GET' && url === '/api/health') return send(res, 200, caps);
@@ -92,7 +110,7 @@ export function createApiHandler(env = {}) {
         const user = String(body.user ?? '').slice(0, 48000);
         if (!system || !user) return fail(res, 400, 'empty');
         if (needsSupport(user)) return fail(res, 422, 'needs_support');
-        const text = await complete(cfg.story, {
+        const text = await complete({ ...cfg.story, model: modelFor(body.stage) }, {
           system,
           user,
           json: body.json !== false,

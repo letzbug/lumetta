@@ -1,0 +1,2446 @@
+diff -ruN '--exclude=node_modules' a/.env.example b/.env.example
+--- a/.env.example	2026-10-02 14:04:42.000000000 +0000
++++ b/.env.example	2026-10-03 04:38:25.544300398 +0000
+@@ -20,6 +20,12 @@
+ OPENAI_API_KEY=
+ ANTHROPIC_API_KEY=
+ 
++# Story Engine V2 runs PLAN → WRITE → REVIEW (≈3 calls per story).
++# Optionally use a cheaper model per stage (falls back to STORY_MODEL):
++STORY_MODEL_PLAN=
++STORY_MODEL_WRITER=
++STORY_MODEL_REVIEW=
++
+ # ── Cover illustration ───────────────────────────────────────
+ # IMAGE_PROVIDER: demo | openai
+ IMAGE_PROVIDER=demo
+@@ -38,3 +44,10 @@
+ 
+ # ── Server ───────────────────────────────────────────────────
+ PORT=8080
++# Comma-separated origins allowed to call this API from a browser,
++# e.g. the GitHub Pages frontend:
++ALLOWED_ORIGINS=https://letzbug.github.io
++
++# Frontend build (GitHub Pages): point the static app at the hosted API
++# VITE_API_BASE=https://your-eu-api.example.org/api
++# VITE_DEMO_MODE=false
+diff -ruN '--exclude=node_modules' a/README.md b/README.md
+--- a/README.md	2026-10-03 04:06:26.000000000 +0000
++++ b/README.md	2026-10-03 04:41:12.040100911 +0000
+@@ -67,7 +67,9 @@
+ `Interpreter → Imagination → Selector → Architect → Characters → Guidance → Writer → Critic → targeted rewrite → Fingerprint`
+ 
+ - All stage prompts are in `src/services/storyEngine/prompts.ts`.
+-- Demo mode uses five benchmark stories in very different story forms.
++- Every request takes the same V2 path (PLAN → WRITE → REVIEW, about 3 model calls).
++- Without a story provider, Lumetta honestly offers labelled example stories instead of a template.
++- Regression tests: `npm run test:engine`.
+ - Details: [STORY_ENGINE_V2.md](STORY_ENGINE_V2.md).
+ 
+ ## Architecture
+diff -ruN '--exclude=node_modules' a/STORY_ENGINE_V2.md b/STORY_ENGINE_V2.md
+--- a/STORY_ENGINE_V2.md	2026-10-03 04:06:26.000000000 +0000
++++ b/STORY_ENGINE_V2.md	2026-10-03 04:41:12.039638539 +0000
+@@ -1,5 +1,54 @@
+ # Lumetta – Story Engine V2
+ 
++> **Correction (V2.1):** arbitrary requests no longer fall back to the retired V1 template engine, and the benchmark stories are no longer matched at runtime. Every request takes one V2 path. Without a story provider, Lumetta says so honestly instead of faking a personalised story.
++
++## One path for every request
++
++```
++StoryRequest → toEngineRequest (name → {{HERO}}) → runStoryEngine → provider (POST /api/llm) → any model
++```
++
++### Efficient mode (default, `src/services/storyEngine/engineConfig.ts`)
++
++| Call | Logical stages inside the call |
++|---|---|
++| 1. PLAN | Interpreter, Imagination (4 candidates + diversity check), Selector, Architect, Characters, Guidance. One structured JSON answer, one section per stage. |
++| 2. WRITE | Age- and language-aware writer, writing for the ear |
++| 3. REVIEW | Model critic + fingerprint. Only runs after the free local critic has passed. |
++
++- A passing story costs **3 calls**.
++- A `concept` or `architect` problem returns to PLAN; any other problem returns to WRITE.
++- `maxRewrites` is 1, so a story costs **at most 5 calls**, with no endless loops.
++- Issues still open when the budget runs out are reported as `qualityWarnings`, not hidden.
++- `mode: 'granular'` keeps the one-call-per-stage pipeline (about 9–14 calls) for debugging or small models.
++
++### Provider abstraction
++- The engine only calls `generateStructured(stage, …)` and `generateText(stage, …)`.
++- The server chooses provider and model from `.env`.
++- **Per-stage models:** `STORY_MODEL_PLAN`, `STORY_MODEL_WRITER` and `STORY_MODEL_REVIEW` let you use a cheaper model for the PLAN and REVIEW stages, for example.
++- **Swapping providers:** to change provider, edit only `server/providers/story.mjs` and `.env`. Interpreter, Architect, Critic, UI, Library and TTS stay unchanged.
++
++### Local critic (free, runs on every draft)
++It checks for:
++- retired V1 template content (Mosslight, Pusteblume …);
++- interest-injection sentences ("thought about all the things that make a heart beat faster");
++- the **swap test**: the requested elements must recur across paragraphs and appear early;
++- the name's capitalisation;
++- forbidden phrasing;
++- clichés used as defaults;
++- length and sound-effect spam.
++
++## Demo mode (no provider, e.g. GitHub Pages)
++Inventing a story from *any* idea needs a language model; a static template cannot do it. So without a provider:
++1. `createStory()` throws `NoStoryProvider`.
++2. The UI shows the child's idea and explains that the storytelling service is needed.
++3. It offers the 5 pre-written **example stories**. They are chosen explicitly, labelled "Example story" in the player and library, and are never matched to the request.
++4. The V1 template engine (`services/demo/demoStoryEngine.ts` and `packs/`) has been **deleted**.
++
++To use real generation from GitHub Pages:
++- Host the API server (`npm run start`) in an EU region and set `ALLOWED_ORIGINS=https://letzbug.github.io`.
++- Build the frontend with `VITE_API_BASE=https://<api>/api` and `VITE_DEMO_MODE=false`. These are build variables in your existing workflow; `base: '/lumetta/'` stays as it is.
++
+ ## What changed
+ The single-prompt / template story generation was replaced by a staged pipeline. UI, visual identity, routing and deployment setup were not changed.
+ 
+diff -ruN '--exclude=node_modules' a/package.json b/package.json
+--- a/package.json	2026-10-02 14:04:42.000000000 +0000
++++ b/package.json	2026-10-03 04:39:37.385101110 +0000
+@@ -2,15 +2,18 @@
+   "name": "lumetta",
+   "private": true,
+   "version": "0.1.0",
+-  "description": "Lumetta – personalised illustrated stories for children (prototype)",
++  "description": "Lumetta \u2013 personalised illustrated stories for children (prototype)",
+   "type": "module",
+-  "engines": { "node": ">=20.19" },
++  "engines": {
++    "node": ">=20.19"
++  },
+   "scripts": {
+     "dev": "vite",
+     "build": "vite build",
+     "typecheck": "tsc --noEmit",
+     "preview": "vite preview",
+-    "start": "node server/index.mjs"
++    "start": "node server/index.mjs",
++    "test:engine": "tsx tests/engine.regression.test.ts"
+   },
+   "dependencies": {
+     "react": "^19.1.0",
+@@ -21,6 +24,7 @@
+     "@types/react-dom": "^19.1.0",
+     "@vitejs/plugin-react": "^5.0.0",
+     "typescript": "^5.8.0",
+-    "vite": "^7.0.0"
++    "vite": "^7.0.0",
++    "tsx": "^4.19.0"
+   }
+ }
+diff -ruN '--exclude=node_modules' a/server/api.mjs b/server/api.mjs
+--- a/server/api.mjs	2026-10-03 04:01:53.000000000 +0000
++++ b/server/api.mjs	2026-10-03 04:38:25.543764429 +0000
+@@ -18,7 +18,7 @@
+ 
+ const LIMITS = { story: 30, image: 30, tts: 60, llm: 400 }; // per client per hour – protects budgets
+ // Story Engine V2 stages allowed through the LLM proxy (anything else is rejected)
+-const ENGINE_STAGES = new Set(['interpreter', 'imagination', 'selector', 'architect', 'characters', 'guidance', 'writer', 'critic', 'fingerprint']);
++const ENGINE_STAGES = new Set(['plan', 'review', 'interpreter', 'imagination', 'selector', 'architect', 'characters', 'guidance', 'writer', 'critic', 'fingerprint']);
+ const hits = new Map();
+ 
+ function rateLimited(ip, kind) {
+@@ -70,6 +70,13 @@
+ 
+ export function createApiHandler(env = {}) {
+   const cfg = resolveConfig(env);
++  // CORS – lets a static frontend (e.g. GitHub Pages) call a separately hosted API.
++  const allowedOrigins = String(env.ALLOWED_ORIGINS ?? process.env.ALLOWED_ORIGINS ?? '')
++    .split(',')
++    .map((o) => o.trim())
++    .filter(Boolean);
++  // Cost control: a cheaper model per stage, e.g. STORY_MODEL_PLAN / STORY_MODEL_WRITER / STORY_MODEL_REVIEW
++  const modelFor = (stage) => String(env[`STORY_MODEL_${stage.toUpperCase()}`] ?? process.env[`STORY_MODEL_${stage.toUpperCase()}`] ?? '').trim() || cfg.story.model;
+   const caps = capabilities(cfg);
+   console.log(`[lumetta-api] story:${caps.story ? cfg.story.provider : 'demo'} image:${caps.image ? cfg.image.provider : 'demo'} tts:${caps.tts ? cfg.tts.provider : 'browser'}`);
+ 
+@@ -77,6 +84,17 @@
+     const url = (req.url ?? '').split('?')[0];
+     if (!url.startsWith('/api/')) return next ? next() : fail(res, 404, 'not_found');
+     const ip = req.socket?.remoteAddress ?? 'unknown';
++    const origin = req.headers?.origin;
++    if (origin && allowedOrigins.includes(origin)) {
++      res.setHeader('Access-Control-Allow-Origin', origin);
++      res.setHeader('Vary', 'Origin');
++      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
++      res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
++    }
++    if (req.method === 'OPTIONS') {
++      res.statusCode = 204;
++      return res.end();
++    }
+ 
+     try {
+       if (req.method === 'GET' && url === '/api/health') return send(res, 200, caps);
+@@ -92,7 +110,7 @@
+         const user = String(body.user ?? '').slice(0, 48000);
+         if (!system || !user) return fail(res, 400, 'empty');
+         if (needsSupport(user)) return fail(res, 422, 'needs_support');
+-        const text = await complete(cfg.story, {
++        const text = await complete({ ...cfg.story, model: modelFor(body.stage) }, {
+           system,
+           user,
+           json: body.json !== false,
+diff -ruN '--exclude=node_modules' a/src/locales/de.json b/src/locales/de.json
+--- a/src/locales/de.json	2026-10-02 14:24:42.000000000 +0000
++++ b/src/locales/de.json	2026-10-03 04:38:10.622693935 +0000
+@@ -281,5 +281,15 @@
+     "companion": "Der Geschichtenbegleiter, ein kleines warmes Licht",
+     "skip": "Zum Inhalt springen",
+     "selected": "ausgewählt"
++  },
++  "demo": {
++    "title": "Für eine Geschichte aus deiner eigenen Idee braucht Lumetta den Erzähldienst.",
++    "body": "In dieser Demo ist kein Erzähldienst verbunden. Aus jeder beliebigen Idee eine neue Geschichte zu erfinden, gelingt nur mit einem Sprachmodell. Eine Schablone würde deine Idee bloß einfügen, und das wollen wir nicht.",
++    "yourIdea": "Deine Idee: „{idea}“",
++    "examplesTitle": "Stattdessen eine Beispielgeschichte anhören",
++    "examplesNote": "Diese Geschichten wurden vorab geschrieben. Sie sind nicht aus deiner Eingabe entstanden.",
++    "inGerman": "auf Deutsch",
++    "badge": "Beispielgeschichte",
++    "connectHint": "Wie der Erzähldienst verbunden wird, steht in der README."
+   }
+ }
+\ No newline at end of file
+diff -ruN '--exclude=node_modules' a/src/locales/en.json b/src/locales/en.json
+--- a/src/locales/en.json	2026-10-02 14:24:42.000000000 +0000
++++ b/src/locales/en.json	2026-10-03 04:38:10.623438040 +0000
+@@ -281,5 +281,15 @@
+     "companion": "The story companion, a small warm light",
+     "skip": "Skip to content",
+     "selected": "selected"
++  },
++  "demo": {
++    "title": "To turn your own idea into a story, Lumetta needs its storytelling service.",
++    "body": "No storytelling service is connected in this demo. Inventing a new story from any idea takes a language model. A template would only paste your idea in, and we don't want that.",
++    "yourIdea": "Your idea: “{idea}”",
++    "examplesTitle": "Listen to an example story instead",
++    "examplesNote": "These stories were written in advance. They were not created from your idea.",
++    "inGerman": "in German",
++    "badge": "Example story",
++    "connectHint": "The README explains how to connect the storytelling service."
+   }
+ }
+\ No newline at end of file
+diff -ruN '--exclude=node_modules' a/src/locales/fr.json b/src/locales/fr.json
+--- a/src/locales/fr.json	2026-10-02 14:38:42.000000000 +0000
++++ b/src/locales/fr.json	2026-10-03 04:38:10.624394944 +0000
+@@ -281,5 +281,15 @@
+     "companion": "Le compagnon d'histoire, une petite lumière chaleureuse",
+     "skip": "Aller au contenu",
+     "selected": "sélectionné"
++  },
++  "demo": {
++    "title": "Pour inventer une histoire à partir de votre idée, Lumetta a besoin de son service de narration.",
++    "body": "Aucun service de narration n’est connecté dans cette démo. Inventer une nouvelle histoire à partir de n’importe quelle idée demande un modèle de langage. Un modèle figé ne ferait qu’insérer votre idée, et nous ne le voulons pas.",
++    "yourIdea": "Votre idée : « {idea} »",
++    "examplesTitle": "Écouter plutôt une histoire d’exemple",
++    "examplesNote": "Ces histoires ont été écrites à l’avance. Elles ne sont pas issues de votre idée.",
++    "inGerman": "en allemand",
++    "badge": "Histoire d’exemple",
++    "connectHint": "Le README explique comment connecter le service de narration."
+   }
+ }
+\ No newline at end of file
+diff -ruN '--exclude=node_modules' a/src/pages/CreatingPage.tsx b/src/pages/CreatingPage.tsx
+--- a/src/pages/CreatingPage.tsx	2026-10-02 14:23:42.000000000 +0000
++++ b/src/pages/CreatingPage.tsx	2026-10-03 04:38:10.640149274 +0000
+@@ -2,7 +2,8 @@
+ import { translate, useI18n } from '../i18n/i18n';
+ import { useStore, type Draft } from '../store/AppStore';
+ import { navigate } from '../store/router';
+-import { createStory, SafetyStop } from '../services/storyService';
++import { createExampleStory, createStory, NoStoryProvider, SafetyStop } from '../services/storyService';
++import { DemoNotice } from './create/DemoNotice';
+ import { logTechnical } from '../services/apiClient';
+ import { LightCompanion, type CompanionState } from '../components/LightCompanion';
+ import { DuskScene } from '../components/DuskScene';
+@@ -31,7 +32,7 @@
+   const { t } = useI18n();
+   const { draft, setCurrent } = useStore();
+   const [stage, setStage] = useState<GenerationStage>('finding');
+-  const [status, setStatus] = useState<'running' | 'ready' | 'error'>('running');
++  const [status, setStatus] = useState<'running' | 'ready' | 'error' | 'demo'>('running');
+   const [attempt, setAttempt] = useState(0);
+   const [storyId, setStoryId] = useState<string | null>(null);
+ 
+@@ -58,6 +59,7 @@
+       .catch((err) => {
+         if (!active) return;
+         if (err instanceof SafetyStop) return navigate('/create', { replace: true });
++        if (err instanceof NoStoryProvider) return setStatus('demo');
+         logTechnical('generation', err);
+         setStatus('error');
+       });
+@@ -69,7 +71,26 @@
+     // eslint-disable-next-line react-hooks/exhaustive-deps
+   }, [attempt]);
+ 
+-  const companion: CompanionState = status === 'error' ? 'paused' : status === 'ready' ? 'ready' : 'thinking';
++  const companion: CompanionState = status === 'error' || status === 'demo' ? 'paused' : status === 'ready' ? 'ready' : 'thinking';
++
++  const pickExample = (id: string) => {
++    const story = createExampleStory(request, id);
++    setCurrent(story);
++    navigate(`/story/${story.id}`, { replace: true });
++  };
++  const idea = [draft.interestsText.trim(), ...request.interestLabels].filter(Boolean).join(' + ');
++
++  if (status === 'demo') {
++    return (
++      <section className="creating creating--demo">
++        <DuskScene variant="low" />
++        <div className="creating__inner">
++          <LightCompanion state="paused" size={110} />
++          <DemoNotice idea={idea} onPick={pickExample} onEdit={() => navigate('/create')} />
++        </div>
++      </section>
++    );
++  }
+   const forWhom = draft.name.trim() ? t('generating.forName', { name: draft.name.trim() }) : t('generating.forChild', { age: draft.age ?? '' });
+   const stageIndex = STAGES.indexOf(stage);
+ 
+diff -ruN '--exclude=node_modules' a/src/pages/LibraryPage.tsx b/src/pages/LibraryPage.tsx
+--- a/src/pages/LibraryPage.tsx	2026-10-02 14:25:25.000000000 +0000
++++ b/src/pages/LibraryPage.tsx	2026-10-03 04:38:10.640657987 +0000
+@@ -90,6 +90,7 @@
+       <div className="book-card__info">
+         {story.childName && <p className="book-card__for">{t('player.forName', { name: story.childName })}</p>}
+         <ul className="pills pills--quiet">
++          {story.engine?.kind === 'v2-demo-example' && <li className="pill pill--example">{t('demo.badge')}</li>}
+           <li className="pill"><Icon name="clock" size={14} />{t('common.minutes', { n: Math.max(1, Math.round(story.estimatedDuration / 60)) })}</li>
+           <li className="pill">{LANGUAGES[story.language].nativeName}</li>
+         </ul>
+diff -ruN '--exclude=node_modules' a/src/pages/PlayerPage.tsx b/src/pages/PlayerPage.tsx
+--- a/src/pages/PlayerPage.tsx	2026-10-02 14:39:01.000000000 +0000
++++ b/src/pages/PlayerPage.tsx	2026-10-03 04:38:10.640417071 +0000
+@@ -185,6 +185,7 @@
+           <h1 className="player__title" id="story-title">{story.title}</h1>
+           {story.childName && <p className="player__for">{t('player.forName', { name: story.childName })}</p>}
+           <ul className="pills" aria-label={story.summary}>
++            {story.engine?.kind === 'v2-demo-example' && <li className="pill pill--example">{t('demo.badge')}</li>}
+             <li className="pill">{t('common.years', { n: story.age })}</li>
+             <li className="pill"><Icon name="clock" size={15} />{t('common.minutes', { n: minutes })}</li>
+             <li className="pill">{LANGUAGES[story.language].nativeName}</li>
+diff -ruN '--exclude=node_modules' a/src/pages/create/DemoNotice.tsx b/src/pages/create/DemoNotice.tsx
+--- a/src/pages/create/DemoNotice.tsx	1970-01-01 00:00:00.000000000 +0000
++++ b/src/pages/create/DemoNotice.tsx	2026-10-03 04:38:25.528801519 +0000
+@@ -0,0 +1,40 @@
++import { useEffect, useRef } from 'react';
++import { useI18n } from '../../i18n/i18n';
++import { listExamples } from '../../services/storyEngine/demo/demoEngine';
++import { LANGUAGES } from '../../config/languages';
++
++/**
++ * Shown when no story provider is configured (e.g. GitHub Pages without an API).
++ * Honest by design: the child's idea is NOT pushed into a template. The parent may
++ * choose a clearly labelled, pre-written example story instead.
++ */
++export function DemoNotice({ idea, onPick, onEdit }: { idea: string; onPick: (id: string) => void; onEdit: () => void }) {
++  const { t, lang } = useI18n();
++  const heading = useRef<HTMLHeadingElement>(null);
++  useEffect(() => heading.current?.focus(), []);
++
++  return (
++    <div className="demo-notice" role="region" aria-labelledby="demo-title">
++      <h2 className="demo-notice__title" id="demo-title" tabIndex={-1} ref={heading}>{t('demo.title')}</h2>
++      {idea && <p className="demo-notice__idea">{t('demo.yourIdea', { idea })}</p>}
++      <p className="demo-notice__body">{t('demo.body')}</p>
++      <h3 className="demo-notice__sub">{t('demo.examplesTitle')}</h3>
++      <p className="demo-notice__note">{t('demo.examplesNote')}</p>
++      <ul className="demo-notice__list">
++        {listExamples().map((ex) => (
++          <li key={ex.id}>
++            <button type="button" className="demo-example" onClick={() => onPick(ex.id)}>
++              <span className="demo-example__title">{ex.title}</span>
++              <span className="demo-example__meta">
++                {ex.storyForm}
++                {ex.language !== lang ? `, ${LANGUAGES[ex.language].nativeName}` : ''}
++              </span>
++            </button>
++          </li>
++        ))}
++      </ul>
++      <p className="demo-notice__note">{t('demo.connectHint')}</p>
++      <button type="button" className="btn btn--ghost-light" onClick={onEdit}>{t('generating.editWishes')}</button>
++    </div>
++  );
++}
+diff -ruN '--exclude=node_modules' a/src/services/demo/coverArt.ts b/src/services/demo/coverArt.ts
+--- a/src/services/demo/coverArt.ts	2026-10-03 04:00:18.000000000 +0000
++++ b/src/services/demo/coverArt.ts	2026-10-03 04:37:17.171267801 +0000
+@@ -189,9 +189,20 @@
+   park: { deep: '#22305C', mid: '#7E5C8A', glow: '#FFC56E' },
+   cat: { deep: '#18223F', mid: '#3A4C7F', glow: '#FFD98A' },
+   crocodile: { deep: '#2E5B5A', mid: '#8CC7B5', glow: '#FFC56E' },
++  abstract: { deep: '#1D2B52', mid: '#4C5E94', glow: '#FFC56E' },
+ };
+ 
+ function subjectWorld(subject: CoverSubject, rnd: () => number): string {
++  if (subject === 'abstract') {
++    // neutral cover for live stories without an image provider: it claims nothing about the plot
++    const stars = Array.from({ length: 50 }, () => `<circle cx="${(rnd() * 600).toFixed(0)}" cy="${(rnd() * 520).toFixed(0)}" r="${(0.7 + rnd() * 1.6).toFixed(1)}" fill="#FFF3DC" opacity="${(0.4 + rnd() * 0.6).toFixed(2)}"/>`).join('');
++    const shapes = Array.from({ length: 5 }, (_, i) => {
++      const y = 430 + i * 70 + rnd() * 30;
++      const shades = ['#2E3F70', '#27365F', '#212E52', '#1B2646', '#151E3A'];
++      return `<path d="M0 ${y} C 150 ${y - 60 - rnd() * 60}, 330 ${y + 40 - rnd() * 60}, 600 ${y - 30 - rnd() * 50} V800 H0 Z" fill="${shades[i]}"/>`;
++    }).join('');
++    return `<rect width="600" height="800" fill="url(#bg)"/>${stars}${shapes}`;
++  }
+   if (subject === 'digger') {
+     return `
+     <rect width="600" height="800" fill="url(#bg)"/>
+@@ -310,9 +321,10 @@
+     park: ['#1E2A55', '#E9A27A'],
+     cat: ['#1A2547', '#3E5288'],
+     crocodile: ['#BFE6EE', '#F3E2C9'],
++    abstract: ['#16224A', '#5E5A8E'],
+   };
+   const [top, bottom] = sky[subject];
+-  const lightAt: Record<CoverSubject, [number, number]> = { digger: [520, 420], park: [120, 200], cat: [200, 210], crocodile: [120, 200] };
++  const lightAt: Record<CoverSubject, [number, number]> = { digger: [520, 420], park: [120, 200], cat: [200, 210], crocodile: [120, 200], abstract: [300, 330] };
+   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 800" preserveAspectRatio="xMidYMid slice">
+   <defs>
+     <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${top}"/><stop offset="1" stop-color="${bottom}"/></linearGradient>
+diff -ruN '--exclude=node_modules' a/src/services/demo/demoStoryEngine.ts b/src/services/demo/demoStoryEngine.ts
+--- a/src/services/demo/demoStoryEngine.ts	2026-10-02 14:15:22.000000000 +0000
++++ b/src/services/demo/demoStoryEngine.ts	1970-01-01 00:00:00.000000000 +0000
+@@ -1,161 +0,0 @@
+-import type { CreatureId, GeneratedStory, LanguageCode, SettingId, StoryRequest } from '../../types/story';
+-import { familyForTheme } from '../../config/catalog';
+-import { ageBand, estimateDurationSeconds } from '../../config/ageProfiles';
+-import { normalize } from '../../utils/text';
+-import { hashString } from '../../utils/id';
+-import type { ArcId, DemoMood, LangPack } from './packs/types';
+-import { de } from './packs/de';
+-import { en } from './packs/en';
+-import { fr } from './packs/fr';
+-
+-/**
+- * DEMO story engine – runs fully on the device, no network, no costs.
+- *
+- * Layer 1 (imagination): interests → world (setting + companion creature),
+- *                        mood → opening and ending, age → length and depth.
+- * Layer 2 (guidance):     optional theme → a narrative arc that carries the
+- *                        theme through metaphor and modelling (never a lesson).
+- *
+- * A real provider replaces this through services/storyService.ts.
+- */
+-const PACKS: Partial<Record<LanguageCode, LangPack>> = { de, en, fr };
+-
+-const KEYWORDS = {
+-  space: ['space', 'weltall', 'weltraum', 'rakete', 'raumschiff', 'planet', 'stern', 'astronaut', 'espace', 'fusee', 'vaisseau', 'etoile', 'cosmos', 'rocket', 'spaceship', 'star', 'galax', 'mond', 'moon', 'lune', 'ufo'],
+-  ocean: ['ocean', 'meer', 'sea', 'fish', 'fisch', 'wal', 'whale', 'mer', 'poisson', 'baleine', 'unterwasser', 'tauch', 'plage', 'strand', 'beach', 'pirat', 'boot', 'boat', 'bateau', 'schiff', 'hai', 'shark', 'requin', 'delfin', 'dolphin', 'dauphin', 'koralle', 'coral', 'corail'],
+-  dino: ['dino', 'saurier', 'rex', 'dinosaure', 'urzeit', 'prehist'],
+-  dragon: ['drache', 'dragon', 'zauber', 'magie', 'magic', 'fee', 'fairy', 'einhorn', 'unicorn', 'licorne', 'ritter', 'knight', 'chevalier', 'prinzess', 'princess'],
+-};
+-
+-/** Counts keywords that start one of the words in the text (so "mer" ≠ "Zimmer"). */
+-function matches(haystack: string, words: string[]) {
+-  const tokens = haystack.split(/[^a-z0-9]+/).filter(Boolean);
+-  return words.reduce((n, w) => n + (tokens.some((t) => t.startsWith(w)) ? 1 : 0), 0);
+-}
+-
+-export function pickWorld(req: Pick<StoryRequest, 'interests' | 'interestsText'>): { setting: SettingId; creature: CreatureId } {
+-  const text = normalize([...req.interests, req.interestsText ?? ''].join(' '));
+-  const ids = new Set(req.interests);
+-  const spaceScore = matches(text, KEYWORDS.space) + (ids.has('space') ? 2 : 0) + (ids.has('vehicles') || ids.has('science') ? 1 : 0);
+-  const oceanScore = matches(text, KEYWORDS.ocean) + (ids.has('ocean') ? 2 : 0);
+-  const setting: SettingId = spaceScore === 0 && oceanScore === 0 ? 'forest' : spaceScore >= oceanScore ? 'space' : 'ocean';
+-
+-  const dinoScore = matches(text, KEYWORDS.dino) + (ids.has('dinosaurs') ? 2 : 0);
+-  const dragonScore = matches(text, KEYWORDS.dragon) + (ids.has('dragons') ? 2 : 0) + (ids.has('magic') ? 1 : 0);
+-  const creature: CreatureId = dinoScore > 0 && dinoScore >= dragonScore ? 'dino' : dragonScore > 0 ? 'dragon' : 'otter';
+-  return { setting, creature };
+-}
+-
+-const CUSTOM_HINTS: Array<[ArcId, string[]]> = [
+-  ['contact', ['kinder', 'freund', 'sprech', 'reden', 'kontakt', 'schuchtern', 'children', 'friend', 'talk', 'shy', 'approach', 'enfant', 'ami', 'parler', 'timide', 'gefuhl', 'feeling', 'emotion', 'wut', 'angry', 'colere', 'traurig', 'sad', 'triste']],
+-  ['courage', ['angst', 'mut', 'neu', 'schule', 'kita', 'umzug', 'afraid', 'scared', 'brave', 'new', 'school', 'move', 'peur', 'courage', 'nouveau', 'ecole', 'creche', 'demenag']],
+-  ['mistakes', ['fehler', 'verlier', 'perfekt', 'mistake', 'losing', 'perfect', 'erreur', 'perdre', 'parfait']],
+-  ['together', ['teilen', 'warten', 'geduld', 'abwechs', 'helfen', 'zuhoren', 'share', 'wait', 'patien', 'turn', 'help', 'listen', 'partager', 'attendre', 'tour', 'aider', 'ecouter']],
+-];
+-
+-export function pickArc(req: Pick<StoryRequest, 'guidanceTheme' | 'customGuidance'>): ArcId {
+-  if (req.guidanceTheme === 'custom' && req.customGuidance) {
+-    const text = normalize(req.customGuidance);
+-    let best: ArcId = 'contact';
+-    let bestScore = 0;
+-    for (const [arc, words] of CUSTOM_HINTS) {
+-      const score = matches(text, words);
+-      if (score > bestScore) { best = arc; bestScore = score; }
+-    }
+-    return best;
+-  }
+-  return familyForTheme(req.guidanceTheme) ?? 'quest';
+-}
+-
+-const MOOD_POOL: DemoMood[] = ['adventure', 'funny', 'calm', 'magical', 'discovery', 'bedtime'];
+-
+-export function resolveMood(mood: StoryRequest['storyMood'], seed: number): DemoMood {
+-  return mood === 'surprise' ? MOOD_POOL[seed % MOOD_POOL.length] : mood;
+-}
+-
+-function fill(template: string, vars: Record<string, string>): string {
+-  // two passes so placeholders inside inserted phrases are resolved too
+-  let out = template;
+-  for (let i = 0; i < 2; i++) out = out.replace(/\{(\w+)\}/g, (m, k) => (k in vars ? vars[k] : m));
+-  return out.replace(/\s{2,}/g, ' ').trim();
+-}
+-
+-export function generateDemoStory(req: StoryRequest, seed = hashString(JSON.stringify(req) + Date.now())): GeneratedStory {
+-  const pack = PACKS[req.language] ?? PACKS.en!;
+-  const language: LanguageCode = PACKS[req.language] ? req.language : 'en';
+-  const band = ageBand(req.childAge);
+-  const { setting, creature } = pickWorld(req);
+-  const arcId = pickArc(req);
+-  const mood = resolveMood(req.storyMood, seed);
+-
+-  const name = req.childName?.trim();
+-  const hero = name || pack.heroFallback;
+-  const s = pack.settings[setting];
+-  const c = pack.creatures[creature];
+-  const arc = pack.arcs[arcId];
+-
+-  const interestWords = [
+-    ...req.interestLabels.map((l) => (pack.lowercaseInterests ? l.toLowerCase() : l)),
+-    ...(req.interestsText ?? '').split(/[,;\n]| und | and | et /).map((x) => x.trim().replace(/[.…]+$/, '')).filter(Boolean),
+-  ];
+-  const uniqueInterests = Array.from(new Map(interestWords.map((w) => [normalize(w), w])).values()).slice(0, 4);
+-
+-  const vars: Record<string, string> = {
+-    hero,
+-    ...pack.heroVars(hero),
+-    cname: c.name,
+-    sound: c.sound,
+-    creatureIndef: c.indef,
+-    ...pack.creatureVars(c.name),
+-    othersNom: s.othersNom,
+-    OthersNom: s.OthersNom,
+-    othersDat: s.othersDat,
+-    othersDesc: s.othersDesc,
+-    activity: s.activity,
+-    gift: s.gift,
+-    place: s.place,
+-    hiding: s.hiding,
+-    interests: pack.listJoin(uniqueInterests),
+-  };
+-  vars.interestsLine = band.id !== 'little' && uniqueInterests.length ? fill(pack.interestsLine, vars) + ' ' : '';
+-
+-  const paragraphs = [
+-    `${pack.moods[mood].opening} ${s.portal}`,
+-    s.arrival,
+-    pack.discovery,
+-    ...arc.paragraphs,
+-    ...(band.id === 'older' || req.childAge >= 8 ? [arc.older] : []),
+-    arc.farewell,
+-    `${s.ret} ${pack.moods[mood].ending}`,
+-  ].map((p) => fill(p, vars));
+-
+-  const story = paragraphs.join('\n\n');
+-  const title = pack.title(name || undefined, c.name, s.title);
+-
+-  return {
+-    title: title.charAt(0).toUpperCase() + title.slice(1),
+-    summary: pack.summary(s.summary, c.summary, arc.tagline),
+-    story,
+-    paragraphs,
+-    coverPrompt: buildDemoCoverPrompt(setting, creature, mood),
+-    estimatedDuration: estimateDurationSeconds(story, req.childAge),
+-    age: req.childAge,
+-    language,
+-    scene: { setting, creature, mood, seed },
+-  };
+-}
+-
+-const SETTING_PROMPTS: Record<SettingId, string> = {
+-  space: 'a space station shaped like a glowing dandelion floating above a blue planet, tiny luminous houses on its threads',
+-  ocean: 'an underwater coral city with seashell houses and friendly jellyfish lanterns, soft light rays from above',
+-  forest: 'an enchanted forest tree village with rope bridges and softly glowing mushrooms at dusk',
+-};
+-const CREATURE_PROMPTS: Record<CreatureId, string> = {
+-  dino: 'a tiny friendly green baby dinosaur with round eyes',
+-  dragon: 'a small cat-sized dragon with crumpled tissue-paper wings',
+-  otter: 'a small otter pup with shiny fur and curious whiskers',
+-};
+-
+-export function buildDemoCoverPrompt(setting: SettingId, creature: CreatureId, mood: DemoMood): string {
+-  return `${SETTING_PROMPTS[setting]}; ${CREATURE_PROMPTS[creature]}; a small floating warm light companion; ${mood} atmosphere`;
+-}
+diff -ruN '--exclude=node_modules' a/src/services/demo/packs/de.ts b/src/services/demo/packs/de.ts
+--- a/src/services/demo/packs/de.ts	2026-10-02 14:15:46.000000000 +0000
++++ b/src/services/demo/packs/de.ts	1970-01-01 00:00:00.000000000 +0000
+@@ -1,193 +0,0 @@
+-import type { LangPack } from './types';
+-
+-const genitive = (name: string) => (/[sßxz]$/i.test(name) ? `${name}’` : `${name}s`);
+-
+-export const de: LangPack = {
+-  heroFallback: 'Mika',
+-  heroVars: (hero) => ({ heroPoss: genitive(hero), deHero: hero }),
+-  creatureVars: (name) => ({ cnamePoss: genitive(name), deCname: name }),
+-  listJoin: (items) => (items.length < 2 ? items.join('') : `${items.slice(0, -1).join(', ')} und ${items[items.length - 1]}`),
+-  lowercaseInterests: false,
+-
+-  moods: {
+-    adventure: {
+-      opening: 'Manche Abenteuer beginnen ganz leise – mit einem Blinken, einem Summen oder einem Geräusch, das man fast überhört.',
+-      ending: 'Und {hero} wusste: Das nächste Abenteuer wartet schon. Vielleicht blinkt es morgen.',
+-    },
+-    funny: {
+-      opening: 'Es gibt Tage, an denen sogar die Socken ein bisschen kichern. Heute war so ein Tag.',
+-      ending: 'Und irgendwo, ganz weit weg, machte {cname} noch einmal „{sound}“ – so laut, dass sogar der Mond kichern musste.',
+-    },
+-    calm: {
+-      opening: 'Es war ein stiller, weicher Abend, und das Licht im Zimmer war so warm wie ein Becher Kakao.',
+-      ending: '{hero} atmete tief ein und langsam wieder aus. Alles war ruhig. Alles war gut.',
+-    },
+-    magical: {
+-      opening: 'Wer ganz genau hinsieht, merkt es manchmal: Die Welt hat kleine Türen, die nur für einen Moment offen stehen.',
+-      ending: 'Und wenn man ganz genau hinsah, glitzerte auf dem Fensterbrett noch ein winziges bisschen Zauber.',
+-    },
+-    discovery: {
+-      opening: '{hero} hatte schon immer gern Fragen gestellt. Wie funktioniert das? Was ist dahinter? Und was passiert, wenn man noch genauer hinschaut?',
+-      ending: 'In {heroPoss} Kopf sprudelten schon neue Fragen. Und das war das Schönste daran.',
+-    },
+-    bedtime: {
+-      opening: 'Draußen wurde es dunkel, und die Sterne kamen einer nach dem anderen heraus, als hätte jemand sie leise angeknipst.',
+-      ending: 'Die Augen wurden schwer, die Decke war warm, und ganz leise, ganz langsam schlief {hero} ein. Gute Nacht.',
+-    },
+-  },
+-
+-  settings: {
+-    space: {
+-      title: 'die Pusteblumen-Station',
+-      summary: 'Eine Reise zur Raumstation Pusteblume',
+-      place: 'auf der Raumstation',
+-      portal:
+-        'Eines Abends summte das Fenster in {heroPoss} Zimmer. Draußen schwebte ein kleines, rundes Raumschiff, nicht größer als ein Kleiderschrank. Es blinkte freundlich: orange, blau, orange. Dann öffnete sich die Luke mit einem leisen Pffft, als wollte das Schiff sagen: Steig ein!',
+-      arrival:
+-        '{hero} kletterte auf den weichen Sitz, und das Raumschiff stieg hinauf – über die Dächer, über die Wolken, bis die Erde aussah wie eine blaue Murmel. {interestsLine}Dann tauchte sie vor ihnen auf: die Raumstation Pusteblume. Sie sah aus wie eine riesige Löwenzahnblüte aus Licht, und an jedem ihrer feinen Fäden hing ein kleines, leuchtendes Haus.',
+-      hiding: 'Im Gewächshaus der Station, zwischen Mondtomaten und blauen Riesenkürbissen, raschelte etwas.',
+-      othersNom: 'die Mondhüpfer',
+-      OthersNom: 'Die Mondhüpfer',
+-      othersDat: 'den Mondhüpfern',
+-      othersDesc: 'kleine, flauschige Wesen mit langen Ohren, die bei jedem Schritt ein bisschen schwebten',
+-      activity: 'bauten aus leuchtenden Steinen eine Kugelbahn, die quer durch die ganze Halle lief',
+-      gift: 'einen glitzernden Sternenkiesel',
+-      ret:
+-        'Als die Station langsam in den Nachtschlaf summte, brachte das kleine Raumschiff {hero} nach Hause. Es landete sanft vor dem Fenster, blinkte noch einmal – orange, blau, orange – und verschwand zwischen den Sternen.',
+-    },
+-    ocean: {
+-      title: 'die Perlmutt-Stadt',
+-      summary: 'Eine Reise in die Korallenstadt Perlmutt',
+-      place: 'in der Korallenstadt',
+-      portal:
+-        'Eines Abends, als {hero} gerade die Zähne putzte, stieg aus dem Waschbecken eine schimmernde Blase auf. Sie wurde größer und größer, bis sie so groß war wie ein Sessel. Darin schaukelte ein kleines Muschelboot, und es schien zu sagen: Komm mit!',
+-      arrival:
+-        'Kaum saß {hero} darin, schwebte die Blase davon – durch das Fenster, über die Wiesen, bis hinunter ins tiefe, blaue Meer. Fische glitten vorbei wie bunte Bänder. {interestsLine}Dann leuchtete es unter ihnen: die Korallenstadt Perlmutt, mit Häusern aus Muscheln und Laternen, die in Wahrheit freundliche Quallen waren.',
+-      hiding: 'Hinter einem Vorhang aus wogendem Seegras blubberte etwas.',
+-      othersNom: 'die Seepferdchenkinder',
+-      OthersNom: 'Die Seepferdchenkinder',
+-      othersDat: 'den Seepferdchenkindern',
+-      othersDesc: 'kleine Seepferdchen mit geringelten Schwänzen, die vor Lachen ständig Blasen machten',
+-      activity: 'bauten aus Sand und Muscheln eine lange Kugelbahn, durch die die Strömung glänzende Kugeln trieb',
+-      gift: 'eine schimmernde Perle',
+-      ret:
+-        'Als das Meer langsam dunkler wurde, trug die Blase {hero} wieder nach oben, durch das Fenster, bis ins warme Zimmer. Mit einem leisen Plopp war sie verschwunden.',
+-    },
+-    forest: {
+-      title: 'das Baumdorf Mooslicht',
+-      summary: 'Eine Reise ins Baumdorf Mooslicht',
+-      place: 'im Baumdorf',
+-      portal:
+-        'Eines Abends entdeckte {hero} im Garten etwas Seltsames: Im alten Apfelbaum war eine kleine Tür mit einem runden Knauf aus Moos. Diese Tür war vorher nie da gewesen. Und unter ihr schimmerte warmes Licht hervor.',
+-      arrival:
+-        '{hero} öffnete die Tür ganz vorsichtig – und dahinter lag ein Wald, in dem die Blätter leise klingelten, wenn der Wind durch sie strich. {interestsLine}Ein Pfad aus leuchtenden Pilzen führte zum Baumdorf Mooslicht, wo kleine Hängebrücken von Baum zu Baum schaukelten.',
+-      hiding: 'Unter einem großen Farn, ganz am Rand des Dorfes, zitterte etwas.',
+-      othersNom: 'die Eichhörnchenkinder',
+-      OthersNom: 'Die Eichhörnchenkinder',
+-      othersDat: 'den Eichhörnchenkindern',
+-      othersDesc: 'kleine Eichhörnchen mit buschigen Schwänzen, die schneller kletterten, als man gucken konnte',
+-      activity: 'bauten aus Zweigen und Rinde eine Kugelbahn, die von Ast zu Ast lief',
+-      gift: 'eine glänzende Eichel',
+-      ret:
+-        'Als die Pilze am Pfad schwächer leuchteten, ging {hero} zurück zur kleinen Tür im Apfelbaum. Im Garten war es still. Und als {hero} sich noch einmal umdrehte, war die Tür nur noch ein Stück Rinde.',
+-    },
+-  },
+-
+-  creatures: {
+-    dino: {
+-      name: 'Tiko',
+-      sound: 'Piep-mrrr',
+-      indef: 'ein winziges grünes Dinosaurierbaby mit runden Augen und einem Schwanz, der vor Aufregung hin und her wischte',
+-      summary: 'ein kleines Dinosaurierbaby namens Tiko',
+-    },
+-    dragon: {
+-      name: 'Pim',
+-      sound: 'Pfff-pff',
+-      indef: 'ein kleiner Drache, nicht größer als eine Katze, mit Flügeln wie zerknittertes Seidenpapier',
+-      summary: 'ein kleiner Drache namens Pim',
+-    },
+-    otter: {
+-      name: 'Lulu',
+-      sound: 'Kiek-kiek',
+-      indef: 'ein kleines Otterkind mit glänzendem Fell und Schnurrhaaren, die neugierig zitterten',
+-      summary: 'ein Otterkind namens Lulu',
+-    },
+-  },
+-
+-  discovery:
+-    '{hiding} {hero} ging in die Hocke und schaute vorsichtig nach. Zwei große Augen blickten zu {hero} hoch. Dort saß {creatureIndef}. „Hallo“, flüsterte {hero}. „Ich bin {hero}.“ Das kleine Wesen machte nur ganz leise: „{sound}.“ An seinem Halsband hing ein Schildchen, und darauf stand: {cname}.',
+-
+-  interestsLine:
+-    'Unterwegs dachte {hero} an all die Dinge, die das Herz schneller schlagen lassen: {interests}. Und es fühlte sich an, als würde diese Reise genau dorthin führen. ',
+-
+-  arcs: {
+-    contact: {
+-      paragraphs: [
+-        '„Bist du ganz allein hier?“, fragte {hero}. {cname} schaute zur Seite. Nicht weit entfernt spielten {othersNom}, {othersDesc}. Sie {activity}. Es sah wunderbar aus. {cname} machte einen kleinen Schritt nach vorn – und dann ganz schnell wieder einen zurück.',
+-        '{hero} kannte dieses Gefühl. Manchmal möchte man so gern mitmachen, und trotzdem bleiben die Füße einfach stehen. Im Bauch kribbelt es, und alle Wörter verstecken sich irgendwo hinten im Hals. „Wollen wir erst mal zusammen zuschauen?“, fragte {hero}. {cname} nickte. Also setzten sie sich nebeneinander und schauten. Nur schauen. Das war erlaubt.',
+-        'Beim Zuschauen bemerkten sie etwas: Die Bahn hatte eine Lücke. Immer an derselben Stelle sprang die Kugel heraus und kullerte davon, und die anderen seufzten jedes Mal. {cname} bekam große Augen und stupste {hero} an. Dann holte {cname} etwas aus dem Versteck hervor: {gift}. Genau so groß wie die Lücke.',
+-        '„Sollen wir das zusammen hinbringen?“, fragte {hero} leise. {cname} zögerte. Dann kam ein kleines Nicken. Schritt für Schritt gingen sie hinüber. {cname} sagte kein Wort, aber {cname} legte den kleinen Schatz vorsichtig in die Lücke und machte ganz leise: „{sound}?“ Einen Moment war alles still. Dann rollte die nächste Kugel los, über den kleinen Schatz hinweg, durch die ganze Bahn, bis ganz nach unten. Klick!',
+-        '„Noch mal!“, rief eines der Kleinen. Und ein anderes fragte: „Wie heißt du?“ {cname} schaute zu {hero}. {hero} lächelte nur und wartete. Da sagte {cname}, zum ersten Mal ein kleines bisschen lauter: „{sound} … {cname}!“ Eines der Kleinen machte es sofort nach: „{sound}!“ Alle mussten lachen, und {cname} lachte mit. Und {hero}? {hero} baute einfach mit, als wäre {hero} schon immer dabei gewesen.',
+-      ],
+-      older:
+-        'Später, als die Bahn immer länger wurde, beobachtete {hero} {cname} genau. {cname} war nicht plötzlich laut geworden. {cname} redete immer noch leise und schaute manchmal zu Boden. Aber jetzt kannte {cname} einen Weg: erst zuschauen, dann etwas Kleines zeigen, dann ein einziges Wort. Und als jemand fragte, ob {cname} morgen wiederkommt, machte {cname} gleich zweimal „{sound}“.',
+-      farewell:
+-        'Zum Abschied drückte sich {cname} ganz fest an {hero}. „{sound}“, machte {cname}, und diesmal klang es wie: Danke. Und wie: Bis bald.',
+-      tagline: 'ein erstes leises Hallo',
+-    },
+-    courage: {
+-      paragraphs: [
+-        '{cname} wollte so gern zu {othersDat}, die ganz oben {place} spielten. Aber der einzige Weg dorthin führte über eine lange, schmale Brücke aus Licht. Sie schaukelte sanft hin und her, und von unten sah sie unendlich lang aus.',
+-        '{cname} stellte eine Pfote auf das erste Brett. Es wackelte. Schnell zog {cname} die Pfote zurück. „{sound}“, machte {cname}, ganz klein. {hero} kannte dieses Gefühl gut. Wenn etwas neu ist, sieht es oft viel größer aus, als es ist. „Weißt du was?“, sagte {hero}. „Wir müssen nicht die ganze Brücke auf einmal schaffen. Nur das erste Brett.“',
+-        'Also nur das erste Brett. Es wackelte ein bisschen – und hielt. Dann das zweite. „Eins“, zählte {hero}. „Zwei.“ Beim fünften Brett blieb {cname} stehen und atmete tief ein und aus. {hero} wartete. Niemand musste sich beeilen. Beim sechsten Brett zählte {cname} selbst mit: „{sound}, {sound}!“',
+-        'In der Mitte der Brücke passierte etwas Seltsames. Von hier aus konnte man alles sehen: die Lichter, die Wege und sogar das kleine Fleckchen, wo sie losgegangen waren. Es sah gar nicht mehr so weit weg aus. Die Brücke wackelte immer noch. Aber jetzt fühlte sich das Wackeln ein bisschen an wie Schaukeln.',
+-        'Am Ende warteten {othersNom}, {othersDesc}. „Ihr seid über die Brücke gekommen!“, riefen sie. {cname} plusterte sich stolz auf. Und als die anderen fragten, wer Lust auf ein Wettrutschen hatte, war {cname} zwar nicht als Erstes auf der Rutsche – aber {cname} war dabei. Und {hero} auch.',
+-      ],
+-      older:
+-        'Auf dem Rückweg ging {cname} ganz allein über die Brücke. Nicht schnell, aber ohne anzuhalten. {hero} lief hinterher und zählte leise mit, Brett für Brett, bis zum Ende. Komisch, dachte {hero}: dieselbe Brücke wie vorhin. Und trotzdem eine ganz andere.',
+-      farewell: 'Zum Abschied schenkte {cname} {hero} {gift}. „{sound}“, machte {cname}. Es klang wie: Bis zum nächsten ersten Brett.',
+-      tagline: 'eine wackelige Brücke und ihr erstes Brett',
+-    },
+-    mistakes: {
+-      paragraphs: [
+-        '{cname} zog {hero} aufgeregt am Ärmel. {OthersNom} {activity}. „Dürfen wir mithelfen?“, fragte {hero}, und die anderen nickten sofort. {cname} hüpfte vor Freude in die Luft – und bei diesem Hüpfer erwischte {cnamePoss} Schwanz ein ganzes Stück der Bahn.',
+-        'Es klapperte. Es kullerte. Und dann lag ein großes Stück der Bahn auf dem Boden. Alle wurden still. {cname} erstarrte und wäre am liebsten ganz klein geworden, so klein wie ein Staubkorn. „{sound} …“, machte {cname}, kaum hörbar.',
+-        '{hero} hockte sich neben {cname}. „Das war ein Versehen“, sagte {hero}. „Das passiert. Mir ist auch schon mal ein ganzer Turm umgefallen. Mit Saft obendrauf.“ Eines der Kleinen kicherte. „Mir auch!“, sagte es. „Sogar zweimal!“ Und plötzlich fühlte sich die Stille gar nicht mehr so schwer an.',
+-        'Dann schauten alle auf die Steine am Boden. Weil sie nun sowieso herausgefallen waren, hatte jemand eine Idee: Was wäre, wenn man sie ein bisschen anders wieder einbaut? Mit einer Kurve. Und einem kleinen Sprung. {cname} schob vorsichtig den ersten Stein an seinen neuen Platz. Dann den nächsten. Und den nächsten.',
+-        'Die neue Bahn war nicht mehr genau wie vorher. Sie war anders. Sie hatte jetzt eine Kurve, die alle nur noch die {cname}-Kurve nannten, und einen Sprung, bei dem die Kugeln kurz durch die Luft flogen, bevor sie weiterrollten. Alle waren sich einig: So war sie sogar noch lustiger.',
+-      ],
+-      older:
+-        'Später sagte eines der Kleinen zu {cname}: „Weißt du, ohne deinen Hüpfer hätten wir nie eine Kurve gebaut.“ {cname} dachte lange darüber nach, mit schief gelegtem Kopf. Dann machte {cname} „{sound}“ – und baute gleich noch eine zweite Kurve dazu.',
+-      farewell: 'Zum Abschied legte {cname} {hero} {gift} in die Hand. „{sound}“, machte {cname}. Es klang wie: Danke, dass du bei mir geblieben bist.',
+-      tagline: 'eine Kurve, die es vorher nicht gab',
+-    },
+-    together: {
+-      paragraphs: [
+-        '{OthersNom} {activity}. Doch heute klappte gar nichts. Ein riesiger runder Stein lag mitten im Weg, und alle versuchten, ihn wegzuschieben. Die einen schoben von links, die anderen von rechts, und alle riefen durcheinander. Der Stein bewegte sich keinen Millimeter.',
+-        '{cname} schaute eine Weile zu. Dann stupste {cname} {hero} an: „{sound}?“ {hero} verstand. „Du meinst, wir fragen, ob wir helfen dürfen?“ {cname} nickte. Allein traute sich {cname} nicht, also gingen sie zusammen hin. „Können wir mithelfen?“, fragte {hero}. „Ja, bitte!“, riefen die anderen erleichtert.',
+-        'Aber jetzt redeten noch mehr durcheinander. Jeder hatte eine Idee, und keiner hörte die der anderen. Da setzte sich {cname} einfach hin und wartete, bis es ein bisschen ruhiger wurde. Dann machte {cname} einmal, zweimal, dreimal: „{sound}. {sound}. {sound}.“ Gleichmäßig wie ein Takt.',
+-        '„Ein Takt!“, rief {hero}. „Wir schieben alle gleichzeitig – auf drei!“ Alle stellten sich auf dieselbe Seite. „Eins … zwei … drei!“ Und der riesige Stein rollte. Erst langsam, dann schneller, bis er mit einem dumpfen Bumm genau an der richtigen Stelle lag. Plötzlich war er kein Hindernis mehr. Er war der Anfang für den schönsten Teil der ganzen Bahn.',
+-        'Natürlich wollten danach alle zuerst ausprobieren. Doch {cname} hatte schon wieder eine Idee: Jeder bekam eine Kugel, und sie ließen sie nacheinander rollen – eine, dann die nächste, dann die nächste. Und weil man warten musste, konnte man jeder einzelnen Kugel bei ihrer Reise zuschauen. Das war fast das Beste daran.',
+-      ],
+-      older:
+-        '{hero} schaute sich um und merkte, wie verschieden alle waren. Manche waren stark, manche schnell, manche hatten verrückte Ideen, und {cname} konnte den Takt halten wie niemand sonst. Allein hätte es keiner geschafft. Zusammen war es beinahe leicht gewesen.',
+-      farewell: 'Zum Abschied schenkten die anderen {hero} {gift}. „{sound}!“, machte {cname} fröhlich. Es klang wie: Morgen wieder?',
+-      tagline: 'ein Stein, der nur gemeinsam rollt',
+-    },
+-    quest: {
+-      paragraphs: [
+-        '„Was ist denn los?“, fragte {hero} sanft. {cname} zeigte in die Ferne und machte ein trauriges „{sound}“. Nach und nach verstand {hero}: {cname} hatte etwas verloren. Etwas sehr Wichtiges. Ein kleines Licht, das {cname} jeden Abend vor dem Einschlafen anschaute.',
+-        '„Das finden wir“, sagte {hero}. Und so machten sie sich auf die Suche. Sie schauten hinter große Dinge und unter kleine. Sie fragten {othersDat}, und die halfen sofort mit. Sie suchten oben und unten und überall dazwischen.',
+-        'Gerade als {cname} ganz müde wurde, entdeckte {hero} es: ein winziges Schimmern, ganz weit oben, wo man nur hinkam, wenn man sich gegenseitig half. {hero} machte eine Räuberleiter, {cname} kletterte hinauf – höher, noch ein kleines bisschen höher – und dann: geschafft!',
+-        'Das kleine Licht leuchtete warm zwischen {cnamePoss} Pfoten. {cname} drehte sich vor Freude im Kreis, einmal, zweimal, dreimal, bis {cname} beinahe umgefallen wäre. {OthersNom} jubelten, und {hero} lachte so sehr, dass es im Bauch kitzelte.',
+-      ],
+-      older:
+-        'Auf dem Rückweg erzählte {cname} mit vielen „{sound}“ und noch mehr Händen und Füßen, wie das Licht verloren gegangen war. {hero} verstand nicht jedes Wort. Aber man muss nicht jedes Wort verstehen, um eine Geschichte zu verstehen.',
+-      farewell: 'Zum Abschied schenkte {cname} {hero} {gift}. „{sound}“, machte {cname}. Es klang wie: Danke.',
+-      tagline: 'ein verlorenes kleines Licht',
+-    },
+-  },
+-
+-  title: (hero, cname, settingTitle) => (hero ? `${hero}, ${cname} und ${settingTitle}` : `${cname} und ${settingTitle}`),
+-  summary: (s, c, t) => `${s}, ${c} und ${t}.`,
+-};
+diff -ruN '--exclude=node_modules' a/src/services/demo/packs/en.ts b/src/services/demo/packs/en.ts
+--- a/src/services/demo/packs/en.ts	2026-10-02 14:15:46.000000000 +0000
++++ b/src/services/demo/packs/en.ts	1970-01-01 00:00:00.000000000 +0000
+@@ -1,193 +0,0 @@
+-import type { LangPack } from './types';
+-
+-const poss = (name: string) => (/s$/i.test(name) ? `${name}’` : `${name}’s`);
+-
+-export const en: LangPack = {
+-  heroFallback: 'Mika',
+-  heroVars: (hero) => ({ heroPoss: poss(hero), deHero: hero }),
+-  creatureVars: (name) => ({ cnamePoss: poss(name), deCname: name }),
+-  listJoin: (items) => (items.length < 2 ? items.join('') : `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`),
+-  lowercaseInterests: true,
+-
+-  moods: {
+-    adventure: {
+-      opening: 'Some adventures begin very quietly – with a blink, a hum, or a sound you almost miss.',
+-      ending: 'And {hero} knew: the next adventure was already waiting. Maybe it would blink tomorrow.',
+-    },
+-    funny: {
+-      opening: 'There are days when even the socks giggle a little. Today was one of those days.',
+-      ending: 'And somewhere far, far away, {cname} went “{sound}” one more time – so loudly that even the moon had to giggle.',
+-    },
+-    calm: {
+-      opening: 'It was a quiet, soft evening, and the light in the room was as warm as a mug of cocoa.',
+-      ending: '{hero} breathed in deeply, and slowly out again. Everything was quiet. Everything was good.',
+-    },
+-    magical: {
+-      opening: 'If you look very closely, you sometimes notice it: the world has little doors that stay open for just a moment.',
+-      ending: 'And if you looked very closely, a tiny bit of magic was still sparkling on the windowsill.',
+-    },
+-    discovery: {
+-      opening: '{hero} had always loved asking questions. How does that work? What is behind it? And what happens if you look even closer?',
+-      ending: 'New questions were already bubbling up in {heroPoss} head. And that was the best part.',
+-    },
+-    bedtime: {
+-      opening: 'Outside it was getting dark, and the stars came out one by one, as if someone were quietly switching them on.',
+-      ending: 'Eyes grew heavy, the blanket was warm, and very softly, very slowly, {hero} fell asleep. Good night.',
+-    },
+-  },
+-
+-  settings: {
+-    space: {
+-      title: 'the Dandelion Station',
+-      summary: 'A journey to the Dandelion space station',
+-      place: 'on the station',
+-      portal:
+-        'One evening, the window in {heroPoss} room began to hum. Outside, a small round spaceship was floating, no bigger than a wardrobe. It blinked kindly: orange, blue, orange. Then the hatch opened with a soft pffft, as if the ship were saying: hop in!',
+-      arrival:
+-        '{hero} climbed onto the soft seat, and the spaceship rose up – over the rooftops, over the clouds, until the Earth looked like a blue marble. {interestsLine}Then it appeared in front of them: the Dandelion space station. It looked like a giant dandelion made of light, and from each of its fine threads hung a small, glowing house.',
+-      hiding: 'In the station’s greenhouse, between moon tomatoes and giant blue pumpkins, something rustled.',
+-      othersNom: 'the moon-hoppers',
+-      OthersNom: 'The moon-hoppers',
+-      othersDat: 'the moon-hoppers',
+-      othersDesc: 'fluffy little creatures with long ears who floated a little with every step',
+-      activity: 'were building a marble run out of glowing stones that ran right across the whole hall',
+-      gift: 'a sparkling star pebble',
+-      ret:
+-        'When the station slowly hummed itself to sleep, the little spaceship brought {hero} home. It landed gently outside the window, blinked one last time – orange, blue, orange – and disappeared among the stars.',
+-    },
+-    ocean: {
+-      title: 'the City of Pearlshine',
+-      summary: 'A journey to the coral city of Pearlshine',
+-      place: 'in the coral city',
+-      portal:
+-        'One evening, right in the middle of teeth-brushing, a shimmering bubble rose out of the sink. It grew bigger and bigger, until it was as big as an armchair. Inside it rocked a little seashell boat, and it seemed to say: come along!',
+-      arrival:
+-        'As soon as {hero} sat inside, the bubble floated away – through the window, over the meadows, and down into the deep blue sea. Fish glided past like colourful ribbons. {interestsLine}Then something glowed beneath them: the coral city of Pearlshine, with houses made of shells and street lamps that were really friendly jellyfish.',
+-      hiding: 'Behind a curtain of swaying seaweed, something bubbled.',
+-      othersNom: 'the seahorse children',
+-      OthersNom: 'The seahorse children',
+-      othersDat: 'the seahorse children',
+-      othersDesc: 'little seahorses with curly tails who made bubbles whenever they laughed',
+-      activity: 'were building a long marble run out of sand and shells, and the current pushed shiny marbles through it',
+-      gift: 'a shimmering pearl',
+-      ret:
+-        'When the sea slowly grew darker, the bubble carried {hero} back up, through the window, into the warm room. With a soft plop, it was gone.',
+-    },
+-    forest: {
+-      title: 'the Mosslight Tree Village',
+-      summary: 'A journey to the tree village of Mosslight',
+-      place: 'in the tree village',
+-      portal:
+-        'One evening, {hero} noticed something strange in the garden: in the old apple tree there was a tiny door with a round handle made of moss. That door had never been there before. And from underneath it, a warm light was glowing.',
+-      arrival:
+-        '{hero} opened the door very carefully – and behind it was a forest where the leaves tinkled softly whenever the wind brushed through them. {interestsLine}A path of glowing mushrooms led to the tree village of Mosslight, where little rope bridges swayed from tree to tree.',
+-      hiding: 'Under a big fern, right at the edge of the village, something was trembling.',
+-      othersNom: 'the squirrel children',
+-      OthersNom: 'The squirrel children',
+-      othersDat: 'the squirrel children',
+-      othersDesc: 'little squirrels with bushy tails who climbed faster than you could watch',
+-      activity: 'were building a marble run out of twigs and bark that ran from branch to branch',
+-      gift: 'a shiny acorn',
+-      ret:
+-        'When the mushrooms along the path began to glow more softly, {hero} walked back to the little door in the apple tree. The garden was quiet. And when {hero} turned around one last time, the door was just a piece of bark again.',
+-    },
+-  },
+-
+-  creatures: {
+-    dino: {
+-      name: 'Tiko',
+-      sound: 'Peep-mrrr',
+-      indef: 'a tiny green baby dinosaur with round eyes and a tail that swished back and forth with excitement',
+-      summary: 'a baby dinosaur called Tiko',
+-    },
+-    dragon: {
+-      name: 'Pim',
+-      sound: 'Pfff-pff',
+-      indef: 'a little dragon, no bigger than a cat, with wings like crumpled tissue paper',
+-      summary: 'a little dragon called Pim',
+-    },
+-    otter: {
+-      name: 'Lulu',
+-      sound: 'Kee-kee',
+-      indef: 'a little otter pup with shiny fur and whiskers that trembled with curiosity',
+-      summary: 'an otter pup called Lulu',
+-    },
+-  },
+-
+-  discovery:
+-    '{hiding} {hero} crouched down and peeked carefully. Two big eyes looked up at {hero}. There sat {creatureIndef}. “Hello,” whispered {hero}. “I’m {hero}.” The little creature only made a tiny sound: “{sound}.” A little tag hung from its collar, and on it was written: {cname}.',
+-
+-  interestsLine:
+-    'On the way, {hero} thought about all the things that make a heart beat faster: {interests}. And it felt as if this journey were heading right there. ',
+-
+-  arcs: {
+-    contact: {
+-      paragraphs: [
+-        '“Are you here all alone?” asked {hero}. {cname} looked over to the side. Not far away, {othersNom} were playing – {othersDesc}. They {activity}. It looked wonderful. {cname} took a small step forward – and then, very quickly, a step back again.',
+-        '{hero} knew that feeling. Sometimes you really want to join in, and still your feet just stay where they are. Your tummy tingles, and all the words hide somewhere at the back of your throat. “Shall we just watch together for a bit?” asked {hero}. {cname} nodded. So they sat side by side and watched. Just watching. That was allowed.',
+-        'While they watched, they noticed something: the marble run had a gap. Every time, at the very same spot, the marble jumped out and rolled away, and the others sighed. {cnamePoss} eyes grew wide, and {cname} nudged {hero}. Then {cname} pulled something out from a hiding place: {gift}. Exactly the size of the gap.',
+-        '“Shall we take it over together?” {hero} asked quietly. {cname} hesitated. Then came a tiny nod. Step by step, they walked over. {cname} didn’t say a word, but carefully placed the little treasure into the gap and went, very softly: “{sound}?” For a moment everything was still. Then the next marble rolled off – over the little treasure, through the whole run, all the way to the bottom. Click!',
+-        '“Again!” shouted one of the little ones. And another one asked: “What’s your name?” {cname} looked at {hero}. {hero} just smiled and waited. Then {cname} said, for the first time a tiny bit louder: “{sound} … {cname}!” One of the little ones copied it straight away: “{sound}!” Everyone had to laugh, and {cname} laughed too. And {hero}? {hero} simply joined in the building, as if {hero} had always been part of the gang.',
+-      ],
+-      older:
+-        'Later, as the marble run grew longer and longer, {hero} watched {cname} closely. {cname} hadn’t suddenly become loud. {cname} still spoke softly and sometimes looked at the ground. But now {cname} knew a way: first watch, then show something small, then say a single word. And when someone asked whether {cname} would come back tomorrow, {cname} went “{sound}” twice.',
+-      farewell:
+-        'When it was time to go, {cname} snuggled up close to {hero}. “{sound},” went {cname}, and this time it sounded like: thank you. And like: see you soon.',
+-      tagline: 'a first quiet hello',
+-    },
+-    courage: {
+-      paragraphs: [
+-        '{cname} really wanted to get to {othersDat}, who were playing high up {place}. But the only way there led across a long, narrow bridge made of light. It swayed gently from side to side, and from below it looked endlessly long.',
+-        '{cname} put one paw on the first plank. It wobbled. Quickly, {cname} pulled the paw back. “{sound},” went {cname}, very small. {hero} knew that feeling well. When something is new, it often looks much bigger than it really is. “You know what?” said {hero}. “We don’t have to do the whole bridge at once. Just the first plank.”',
+-        'So – just the first plank. It wobbled a little, and it held. Then the second. “One,” counted {hero}. “Two.” At the fifth plank, {cname} stopped and took a deep breath in, and out. {hero} waited. Nobody had to hurry. At the sixth plank, {cname} counted along: “{sound}, {sound}!”',
+-        'In the middle of the bridge, something strange happened. From up here, you could see everything: the lights, the paths, and even the little spot where they had started. It didn’t look so far away anymore. The bridge was still wobbling. But now the wobbling felt a little bit like swinging.',
+-        'At the end waited {othersNom}, {othersDesc}. “You came across the bridge!” they called. {cname} puffed up proudly. And when the others asked who wanted a slide race, {cname} wasn’t the first one down the slide – but {cname} was there. And so was {hero}.',
+-      ],
+-      older:
+-        'On the way back, {cname} walked across the bridge all alone. Not fast, but without stopping. {hero} followed and quietly counted along, plank by plank, all the way to the end. Funny, thought {hero}: the same bridge as before. And yet a completely different one.',
+-      farewell: 'When it was time to say goodbye, {cname} gave {hero} {gift}. “{sound},” went {cname}. It sounded like: until the next first plank.',
+-      tagline: 'a wobbly bridge and its very first plank',
+-    },
+-    mistakes: {
+-      paragraphs: [
+-        '{cname} tugged excitedly at {heroPoss} sleeve. {OthersNom} {activity}. “Can we help?” asked {hero}, and the others nodded straight away. {cname} jumped for joy – and with that jump, {cnamePoss} tail caught a whole piece of the marble run.',
+-        'Clatter. Rattle. And then a big piece of the run lay on the ground. Everyone went quiet. {cname} froze and wished to become very small, as small as a speck of dust. “{sound} …” went {cname}, barely to be heard.',
+-        '{hero} crouched down next to {cname}. “That was an accident,” said {hero}. “It happens. Once I knocked over a whole tower. With juice on top.” One of the little ones giggled. “Me too!” it said. “Twice, actually!” And suddenly the silence didn’t feel so heavy anymore.',
+-        'Then everyone looked at the stones on the ground. Since they had fallen out anyway, someone had an idea: what if we put them back a little differently? With a curve. And a little jump. {cname} carefully pushed the first stone into its new place. Then the next one. And the next.',
+-        'The new marble run wasn’t exactly like before. It was different. Now it had a curve that everyone simply called the {cname} Curve, and a jump where the marbles flew through the air for a moment before rolling on. Everyone agreed: this way it was even more fun.',
+-      ],
+-      older:
+-        'Later, one of the little ones said to {cname}: “You know, without your jump we would never have built a curve.” {cname} thought about that for a long time, head tilted to one side. Then {cname} went “{sound}” – and built a second curve as well.',
+-      farewell: 'When it was time to go, {cname} put {gift} into {heroPoss} hand. “{sound},” went {cname}. It sounded like: thank you for staying with me.',
+-      tagline: 'a curve that wasn’t there before',
+-    },
+-    together: {
+-      paragraphs: [
+-        '{OthersNom} {activity}. But today nothing was working. A huge round stone lay right in the way, and everyone was trying to push it aside. Some pushed from the left, some from the right, and everyone was shouting at once. The stone didn’t move a single millimetre.',
+-        '{cname} watched for a while. Then {cname} nudged {hero}: “{sound}?” {hero} understood. “You mean we should ask if we can help?” {cname} nodded. {cname} didn’t dare to go alone, so they went over together. “Can we help?” asked {hero}. “Yes, please!” the others called, relieved.',
+-        'But now even more voices were talking at once. Everyone had an idea, and nobody could hear anyone else’s. So {cname} simply sat down and waited until it got a little quieter. Then {cname} went once, twice, three times: “{sound}. {sound}. {sound}.” As steady as a beat.',
+-        '“A beat!” cried {hero}. “Let’s all push at the same time – on three!” Everyone lined up on the same side. “One … two … three!” And the huge stone rolled. Slowly at first, then faster, until it landed with a deep thump in exactly the right spot. Suddenly it wasn’t in the way anymore. It was the start of the best part of the whole marble run.',
+-        'Of course, afterwards everyone wanted to go first. But {cname} already had another idea: everyone got one marble, and they let them roll one after another – one, then the next, then the next. And because you had to wait, you could watch every single marble on its journey. That was almost the best part.',
+-      ],
+-      older:
+-        '{hero} looked around and noticed how different everyone was. Some were strong, some were fast, some had wild ideas, and {cname} could keep the beat like nobody else. Nobody could have done it alone. Together it had been almost easy.',
+-      farewell: 'When it was time to say goodbye, the others gave {hero} {gift}. “{sound}!” went {cname} happily. It sounded like: again tomorrow?',
+-      tagline: 'a stone that only rolls together',
+-    },
+-    quest: {
+-      paragraphs: [
+-        '“What’s the matter?” {hero} asked gently. {cname} pointed into the distance and made a sad little “{sound}”. Bit by bit, {hero} understood: {cname} had lost something. Something very important. A little light that {cname} looked at every evening before falling asleep.',
+-        '“We’ll find it,” said {hero}. And so they set off to search. They looked behind big things and under small ones. They asked {othersDat}, who started helping right away. They searched high and low and everywhere in between.',
+-        'Just when {cname} was getting very tired, {hero} spotted it: a tiny shimmer, high up, in a place you could only reach if you helped each other. {hero} made a step with both hands, {cname} climbed up – higher, a tiny bit higher – and then: got it!',
+-        'The little light glowed warmly between {cnamePoss} paws. {cname} spun around with joy, once, twice, three times, until {cname} almost fell over. {OthersNom} cheered, and {hero} laughed so much that it tickled inside.',
+-      ],
+-      older:
+-        'On the way back, {cname} told the whole story of how the light got lost – with lots of “{sound}” and even more waving paws. {hero} didn’t understand every word. But you don’t have to understand every word to understand a story.',
+-      farewell: 'When it was time to go, {cname} gave {hero} {gift}. “{sound},” went {cname}. It sounded like: thank you.',
+-      tagline: 'a little lost light',
+-    },
+-  },
+-
+-  title: (hero, cname, settingTitle) => (hero ? `${hero}, ${cname} and ${settingTitle}` : `${cname} and ${settingTitle}`),
+-  summary: (s, c, t) => `${s}, ${c} and ${t}.`,
+-};
+diff -ruN '--exclude=node_modules' a/src/services/demo/packs/fr.ts b/src/services/demo/packs/fr.ts
+--- a/src/services/demo/packs/fr.ts	2026-10-02 14:15:46.000000000 +0000
++++ b/src/services/demo/packs/fr.ts	1970-01-01 00:00:00.000000000 +0000
+@@ -1,194 +0,0 @@
+-import type { LangPack } from './types';
+-
+-/** "de Léo" / "d’Anna" */
+-const de = (name: string) => (/^[aeiouyàâäéèêëîïôöûüh]/i.test(name) ? `d’${name}` : `de ${name}`);
+-
+-export const fr: LangPack = {
+-  heroFallback: 'Mika',
+-  heroVars: (hero) => ({ heroPoss: hero, deHero: de(hero) }),
+-  creatureVars: (name) => ({ cnamePoss: name, deCname: de(name) }),
+-  listJoin: (items) => (items.length < 2 ? items.join('') : `${items.slice(0, -1).join(', ')} et ${items[items.length - 1]}`),
+-  lowercaseInterests: true,
+-
+-  moods: {
+-    adventure: {
+-      opening: 'Certaines aventures commencent tout doucement : par un clignement, un bourdonnement ou un bruit qu’on entend à peine.',
+-      ending: 'Et {hero} le savait : la prochaine aventure attendait déjà. Peut-être qu’elle clignoterait demain.',
+-    },
+-    funny: {
+-      opening: 'Il y a des jours où même les chaussettes gloussent un peu. Aujourd’hui était un de ces jours.',
+-      ending: 'Et quelque part, très loin, {cname} fit encore une fois « {sound} », si fort que même la lune dut pouffer de rire.',
+-    },
+-    calm: {
+-      opening: 'C’était une soirée calme et douce, et la lumière dans la chambre était aussi chaude qu’une tasse de chocolat.',
+-      ending: '{hero} respira profondément, puis souffla tout doucement. Tout était calme. Tout allait bien.',
+-    },
+-    magical: {
+-      opening: 'Quand on regarde très attentivement, on le remarque parfois : le monde a de petites portes qui ne restent ouvertes qu’un instant.',
+-      ending: 'Et si l’on regardait de très près, un tout petit peu de magie scintillait encore sur le rebord de la fenêtre.',
+-    },
+-    discovery: {
+-      opening: '{hero} avait toujours adoré poser des questions. Comment ça marche ? Qu’y a-t-il derrière ? Et que se passe-t-il si l’on regarde encore de plus près ?',
+-      ending: 'Dans la tête {deHero}, de nouvelles questions pétillaient déjà. Et c’était ça, le plus beau.',
+-    },
+-    bedtime: {
+-      opening: 'Dehors, la nuit tombait, et les étoiles apparaissaient une à une, comme si quelqu’un les allumait tout doucement.',
+-      ending: 'Les paupières devinrent lourdes, la couverture était chaude, et tout doucement, tout lentement, {hero} s’endormit. Bonne nuit.',
+-    },
+-  },
+-
+-  settings: {
+-    space: {
+-      title: 'la station Pissenlit',
+-      summary: 'Un voyage vers la station spatiale Pissenlit',
+-      place: 'sur la station',
+-      portal:
+-        'Un soir, la fenêtre de la chambre {deHero} se mit à bourdonner. Dehors flottait un petit vaisseau spatial tout rond, pas plus grand qu’une armoire. Il clignotait gentiment : orange, bleu, orange. Puis la trappe s’ouvrit avec un petit pfffft, comme si le vaisseau disait : monte !',
+-      arrival:
+-        '{hero} grimpa sur le siège moelleux, et le vaisseau s’éleva : au-dessus des toits, au-dessus des nuages, jusqu’à ce que la Terre ressemble à une bille bleue. {interestsLine}Puis elle apparut devant eux : la station spatiale Pissenlit. On aurait dit une immense fleur de pissenlit faite de lumière, et à chacun de ses fins filaments pendait une petite maison lumineuse.',
+-      hiding: 'Dans la serre de la station, entre les tomates lunaires et les citrouilles bleues géantes, quelque chose bruissait.',
+-      othersNom: 'les sauteurs de lune',
+-      OthersNom: 'Les sauteurs de lune',
+-      othersDat: 'aux sauteurs de lune',
+-      othersDesc: 'de petits êtres duveteux aux longues oreilles qui flottaient un peu à chaque pas',
+-      activity: 'construisaient avec des pierres lumineuses un circuit à billes qui traversait toute la grande salle',
+-      gift: 'un caillou d’étoile scintillant',
+-      ret:
+-        'Quand la station commença doucement à ronronner pour la nuit, le petit vaisseau ramena {hero} à la maison. Il se posa délicatement devant la fenêtre, clignota une dernière fois, orange, bleu, orange, puis disparut parmi les étoiles.',
+-    },
+-    ocean: {
+-      title: 'la cité de Nacre',
+-      summary: 'Un voyage vers la cité de corail de Nacre',
+-      place: 'dans la cité de corail',
+-      portal:
+-        'Un soir, au beau milieu du brossage de dents, une bulle chatoyante sortit du lavabo. Elle grandit, grandit, jusqu’à devenir aussi grande qu’un fauteuil. À l’intérieur se balançait un petit bateau-coquillage, qui semblait dire : viens !',
+-      arrival:
+-        '{hero} s’assit dedans, et aussitôt la bulle s’envola : par la fenêtre, au-dessus des prés, jusqu’au fond de la mer bleue et profonde. Des poissons glissaient comme des rubans colorés. {interestsLine}Puis quelque chose brilla sous eux : la cité de corail de Nacre, avec des maisons en coquillages et des lampadaires qui étaient en réalité de gentilles méduses.',
+-      hiding: 'Derrière un rideau d’algues ondulantes, quelque chose faisait des bulles.',
+-      othersNom: 'les bébés hippocampes',
+-      OthersNom: 'Les bébés hippocampes',
+-      othersDat: 'aux bébés hippocampes',
+-      othersDesc: 'de petits hippocampes à la queue enroulée qui faisaient des bulles chaque fois qu’ils riaient',
+-      activity: 'construisaient avec du sable et des coquillages un long circuit à billes, où le courant poussait des billes brillantes',
+-      gift: 'une perle chatoyante',
+-      ret:
+-        'Quand la mer devint peu à peu plus sombre, la bulle ramena {hero} vers le haut, par la fenêtre, jusque dans la chambre bien chaude. Avec un petit plop, elle disparut.',
+-    },
+-    forest: {
+-      title: 'le village-arbre de Mousselune',
+-      summary: 'Un voyage vers le village-arbre de Mousselune',
+-      place: 'dans le village-arbre',
+-      portal:
+-        'Un soir, {hero} remarqua quelque chose d’étrange dans le jardin : dans le vieux pommier, il y avait une toute petite porte avec une poignée ronde en mousse. Cette porte n’avait jamais été là. Et par-dessous brillait une lumière chaude.',
+-      arrival:
+-        '{hero} ouvrit la porte très doucement, et derrière se trouvait une forêt où les feuilles tintaient quand le vent les caressait. {interestsLine}Un chemin de champignons lumineux menait au village-arbre de Mousselune, où de petits ponts suspendus se balançaient d’arbre en arbre.',
+-      hiding: 'Sous une grande fougère, tout au bord du village, quelque chose tremblait.',
+-      othersNom: 'les petits écureuils',
+-      OthersNom: 'Les petits écureuils',
+-      othersDat: 'aux petits écureuils',
+-      othersDesc: 'de petits écureuils à la queue touffue qui grimpaient plus vite qu’on ne pouvait les suivre des yeux',
+-      activity: 'construisaient avec des brindilles et de l’écorce un circuit à billes qui allait de branche en branche',
+-      gift: 'un gland brillant',
+-      ret:
+-        'Quand les champignons du chemin se mirent à briller plus faiblement, {hero} retourna vers la petite porte du pommier. Le jardin était silencieux. Et quand {hero} se retourna une dernière fois, la porte n’était plus qu’un morceau d’écorce.',
+-    },
+-  },
+-
+-  creatures: {
+-    dino: {
+-      name: 'Tiko',
+-      sound: 'Pip-mrrr',
+-      indef: 'un tout petit bébé dinosaure vert aux yeux ronds, dont la queue s’agitait d’excitation',
+-      summary: 'un bébé dinosaure nommé Tiko',
+-    },
+-    dragon: {
+-      name: 'Pim',
+-      sound: 'Pfff-pff',
+-      indef: 'un petit dragon, pas plus grand qu’un chat, aux ailes comme du papier de soie froissé',
+-      summary: 'un petit dragon nommé Pim',
+-    },
+-    otter: {
+-      name: 'Lulu',
+-      sound: 'Kik-kik',
+-      indef: 'un bébé loutre au pelage brillant et aux moustaches qui frémissaient de curiosité',
+-      summary: 'un bébé loutre nommé Lulu',
+-    },
+-  },
+-
+-  discovery:
+-    '{hiding} {hero} s’accroupit et regarda prudemment. Deux grands yeux se levèrent vers {hero}. Là se trouvait {creatureIndef}. « Bonjour », chuchota {hero}. « Je m’appelle {hero}. » La petite créature fit seulement, tout bas : « {sound}. » À son collier pendait une petite étiquette, sur laquelle était écrit : {cname}.',
+-
+-  interestsLine:
+-    'En chemin, {hero} pensa à tout ce qui fait battre le cœur plus vite : {interests}. Et c’était comme si ce voyage menait tout droit là-bas. ',
+-
+-  arcs: {
+-    contact: {
+-      paragraphs: [
+-        '« Tu es tout seul ici ? » demanda {hero}. {cname} regarda sur le côté. Pas très loin jouaient {othersNom} : {othersDesc}. Ils {activity}. C’était merveilleux à voir. {cname} fit un petit pas en avant… puis, très vite, un pas en arrière.',
+-        '{hero} connaissait bien ce sentiment. Parfois, on a tellement envie de jouer avec les autres, et pourtant les pieds restent plantés là. Le ventre picote, et tous les mots se cachent quelque part au fond de la gorge. « Et si on regardait d’abord ensemble ? » demanda {hero}. {cname} hocha la tête. Alors ils s’assirent côte à côte et regardèrent. Juste regarder. C’était permis.',
+-        'En regardant, ils remarquèrent quelque chose : le circuit avait un trou. À chaque fois, exactement au même endroit, la bille sautait dehors et roulait plus loin, et les autres soupiraient. Les yeux {deCname} s’agrandirent, et {cname} donna un petit coup de coude à {hero}. Puis {cname} sortit quelque chose de sa cachette : {gift}. Juste de la taille du trou.',
+-        '« On l’apporte ensemble ? » demanda doucement {hero}. {cname} hésita. Puis il y eut un tout petit hochement de tête. Pas à pas, ils s’approchèrent. {cname} ne dit pas un mot, mais posa délicatement le petit trésor dans le trou et fit, tout bas : « {sound} ? » Pendant un instant, tout fut silencieux. Puis la bille suivante partit, passa sur le petit trésor, traversa tout le circuit et arriva tout en bas. Clic !',
+-        '« Encore ! » cria l’un des petits. Et un autre demanda : « Comment tu t’appelles ? » {cname} regarda {hero}. {hero} sourit simplement et attendit. Alors {cname} dit, pour la première fois un tout petit peu plus fort : « {sound}… {cname} ! » L’un des petits l’imita aussitôt : « {sound} ! » Tout le monde éclata de rire, et {cname} rit avec eux. Et {hero} ? {hero} se mit à construire avec eux, comme si {hero} avait toujours fait partie de la bande.',
+-      ],
+-      older:
+-        'Plus tard, pendant que le circuit devenait de plus en plus long, {hero} observa {cname} attentivement. {cname} n’était pas devenu bruyant d’un coup. Il parlait toujours doucement et regardait parfois par terre. Mais maintenant, {cname} connaissait un chemin : d’abord regarder, puis montrer quelque chose de petit, puis dire un seul mot. Et quand quelqu’un demanda si {cname} reviendrait demain, {cname} fit deux fois « {sound} ».',
+-      farewell:
+-        'Au moment de se dire au revoir, {cname} se blottit tout contre {hero}. « {sound} », fit {cname}, et cette fois, cela voulait dire : merci. Et aussi : à bientôt.',
+-      tagline: 'un premier bonjour tout doux',
+-    },
+-    courage: {
+-      paragraphs: [
+-        '{cname} avait très envie de rejoindre {othersNom}, qui jouaient tout en haut, {place}. Mais le seul chemin pour y arriver passait par un long pont étroit fait de lumière. Il se balançait doucement de gauche à droite, et d’en bas, il paraissait interminable.',
+-        '{cname} posa une patte sur la première planche. Elle bougea. Vite, {cname} retira sa patte. « {sound} », fit {cname}, tout petit. {hero} connaissait bien ce sentiment. Quand quelque chose est nouveau, cela paraît souvent bien plus grand que ce n’est vraiment. « Tu sais quoi ? » dit {hero}. « On n’est pas obligés de traverser tout le pont d’un coup. Juste la première planche. »',
+-        'Alors, juste la première planche. Elle bougea un peu… et elle tint bon. Puis la deuxième. « Un », compta {hero}. « Deux. » À la cinquième planche, {cname} s’arrêta et respira profondément. {hero} attendit. Personne n’avait besoin de se dépêcher. À la sixième planche, {cname} compta tout seul : « {sound}, {sound} ! »',
+-        'Au milieu du pont, il se passa quelque chose d’étrange. D’ici, on voyait tout : les lumières, les chemins et même le petit endroit d’où ils étaient partis. Ça ne paraissait plus si loin. Le pont bougeait toujours. Mais maintenant, ça ressemblait un peu à une balançoire.',
+-        'Au bout du pont attendaient {othersNom} : {othersDesc}. « Vous avez traversé le pont ! » crièrent-ils. {cname} se gonfla de fierté. Et quand les autres demandèrent qui voulait faire une course de toboggan, {cname} ne fut pas le premier en bas, mais {cname} était de la partie. Et {hero} aussi.',
+-      ],
+-      older:
+-        'Sur le chemin du retour, {cname} traversa le pont tout seul. Pas vite, mais sans s’arrêter. {hero} suivait en comptant tout bas, planche après planche, jusqu’au bout. C’est drôle, pensa {hero} : c’est le même pont que tout à l’heure. Et pourtant, c’est un tout autre pont.',
+-      farewell: 'Au moment de partir, {cname} offrit {gift} à {hero}. « {sound} », fit {cname}. Cela voulait dire : à la prochaine première planche.',
+-      tagline: 'un pont qui bouge et sa toute première planche',
+-    },
+-    mistakes: {
+-      paragraphs: [
+-        '{cname} tira {hero} par la manche, tout excité. {OthersNom} {activity}. « On peut vous aider ? » demanda {hero}, et les autres hochèrent aussitôt la tête. {cname} sauta de joie… et dans ce saut, la queue {deCname} accrocha tout un morceau du circuit.',
+-        'Ça cliqueta. Ça roula. Et un grand morceau du circuit se retrouva par terre. Tout le monde se tut. {cname} se figea et aurait voulu devenir minuscule, aussi petit qu’un grain de poussière. « {sound}… », fit {cname}, à peine audible.',
+-        '{hero} s’accroupit à côté {deCname}. « C’était un accident », dit {hero}. « Ça arrive. Une fois, j’ai fait tomber toute une tour. Avec du jus de pomme dessus. » L’un des petits pouffa de rire. « Moi aussi ! » dit-il. « Et même deux fois ! » Et soudain, le silence ne paraissait plus si lourd.',
+-        'Puis tout le monde regarda les pierres par terre. Puisqu’elles étaient tombées de toute façon, quelqu’un eut une idée : et si on les remettait un peu autrement ? Avec un virage. Et un petit saut. {cname} poussa délicatement la première pierre à sa nouvelle place. Puis la suivante. Et encore la suivante.',
+-        'Le nouveau circuit n’était plus exactement comme avant. Il était différent. Il avait maintenant un virage que tout le monde appelait le virage {deCname}, et un saut où les billes volaient un instant dans les airs avant de continuer à rouler. Tout le monde était d’accord : comme ça, c’était encore plus amusant.',
+-      ],
+-      older:
+-        'Plus tard, l’un des petits dit à {cname} : « Tu sais, sans ton saut, on n’aurait jamais construit de virage. » {cname} y réfléchit longtemps, la tête penchée sur le côté. Puis {cname} fit « {sound} » et construisit encore un deuxième virage.',
+-      farewell: 'Au moment de partir, {cname} déposa {gift} dans la main {deHero}. « {sound} », fit {cname}. Cela voulait dire : merci de ne pas m’avoir laissé tout seul.',
+-      tagline: 'un virage qui n’existait pas avant',
+-    },
+-    together: {
+-      paragraphs: [
+-        '{OthersNom} {activity}. Mais aujourd’hui, rien ne marchait. Une énorme pierre ronde bloquait le passage, et tout le monde essayait de la pousser. Les uns poussaient par la gauche, les autres par la droite, et tout le monde criait en même temps. La pierre ne bougeait pas d’un millimètre.',
+-        '{cname} regarda un moment. Puis {cname} donna un petit coup de coude à {hero} : « {sound} ? » {hero} comprit. « Tu veux dire qu’on demande si on peut aider ? » {cname} hocha la tête. Tout seul, {cname} n’osait pas, alors ils y allèrent ensemble. « On peut vous aider ? » demanda {hero}. « Oh oui, s’il vous plaît ! » répondirent les autres, soulagés.',
+-        'Mais maintenant, encore plus de voix parlaient en même temps. Chacun avait une idée, et personne n’entendait celle des autres. Alors {cname} s’assit tout simplement et attendit que ce soit un peu plus calme. Puis {cname} fit une fois, deux fois, trois fois : « {sound}. {sound}. {sound}. » Régulier comme un rythme.',
+-        '« Un rythme ! » s’écria {hero}. « On pousse tous en même temps, à trois ! » Tout le monde se plaça du même côté. « Un… deux… trois ! » Et l’énorme pierre roula. D’abord lentement, puis plus vite, jusqu’à s’arrêter avec un gros boum exactement au bon endroit. Soudain, elle ne gênait plus du tout. Elle devint le début de la plus belle partie du circuit.',
+-        'Bien sûr, ensuite, tout le monde voulait essayer en premier. Mais {cname} avait déjà une autre idée : chacun reçut une bille, et ils les lancèrent l’une après l’autre. Une, puis la suivante, puis la suivante. Et comme il fallait attendre, on pouvait regarder chaque bille faire tout son voyage. C’était presque le meilleur moment.',
+-      ],
+-      older:
+-        '{hero} regarda autour et remarqua à quel point tout le monde était différent. Certains étaient forts, d’autres rapides, d’autres avaient des idées folles, et {cname} savait garder le rythme comme personne. Personne n’aurait réussi seul. Ensemble, cela avait été presque facile.',
+-      farewell: 'Au moment de se dire au revoir, les autres offrirent {gift} à {hero}. « {sound} ! » fit {cname}, tout joyeux. Cela voulait dire : on recommence demain ?',
+-      tagline: 'une pierre qui ne roule qu’ensemble',
+-    },
+-    quest: {
+-      paragraphs: [
+-        '« Qu’est-ce qui ne va pas ? » demanda doucement {hero}. {cname} montra le lointain et fit un petit « {sound} » tout triste. Peu à peu, {hero} comprit : {cname} avait perdu quelque chose. Quelque chose de très important. Une petite lumière que {cname} regardait chaque soir avant de s’endormir.',
+-        '« On va la retrouver », dit {hero}. Et les voilà partis à sa recherche. Ils regardèrent derrière les grandes choses et sous les petites. Ils demandèrent de l’aide {othersDat}, qui se mirent aussitôt à chercher eux aussi. Ils cherchèrent en haut, en bas et partout entre les deux.',
+-        'Juste au moment où {cname} commençait à être très fatigué, {hero} l’aperçut : une minuscule lueur, tout là-haut, à un endroit qu’on ne pouvait atteindre qu’en s’aidant les uns les autres. {hero} fit la courte échelle, {cname} grimpa, plus haut, encore un tout petit peu plus haut… et voilà : réussi !',
+-        'La petite lumière brillait chaudement entre les pattes {deCname}. {cname} tourna sur lui-même de joie, une fois, deux fois, trois fois, jusqu’à presque tomber. {OthersNom} applaudirent, et {hero} rit tellement que ça chatouillait dans le ventre.',
+-      ],
+-      older:
+-        'Sur le chemin du retour, {cname} raconta comment la lumière s’était perdue, avec beaucoup de « {sound} » et encore plus de gestes. {hero} ne comprenait pas chaque mot. Mais on n’a pas besoin de comprendre chaque mot pour comprendre une histoire.',
+-      farewell: 'Au moment de partir, {cname} offrit {gift} à {hero}. « {sound} », fit {cname}. Cela voulait dire : merci.',
+-      tagline: 'une petite lumière perdue',
+-    },
+-  },
+-
+-  title: (hero, cname, settingTitle) => (hero ? `${hero}, ${cname} et ${settingTitle}` : `${cname} et ${settingTitle}`),
+-  summary: (s, c, t) => `${s}, ${c} et ${t}.`,
+-};
+diff -ruN '--exclude=node_modules' a/src/services/demo/packs/types.ts b/src/services/demo/packs/types.ts
+--- a/src/services/demo/packs/types.ts	2026-10-02 14:12:11.000000000 +0000
++++ b/src/services/demo/packs/types.ts	1970-01-01 00:00:00.000000000 +0000
+@@ -1,63 +0,0 @@
+-import type { CreatureId, SettingId, StoryMood } from '../../../types/story';
+-import type { GuidanceFamily } from '../../../config/catalog';
+-
+-/**
+- * A language pack for the DEMO story engine.
+- *
+- * Texts use {placeholders}. Available everywhere:
+- *   {hero} {heroPoss} {deHero}            – the child (or a neutral hero name)
+- *   {cname} {cnamePoss} {deCname} {sound} – the companion creature
+- *   {othersNom} {OthersNom} {othersDat} {othersDesc} {activity} {gift} {place}
+- *   {interests}                           – what the child loves (interestsLine only)
+- *
+- * Grammar is handled by writing full phrases per setting instead of assembling
+- * nouns, so German cases and French agreement stay correct.
+- */
+-export type ArcId = GuidanceFamily | 'quest';
+-export type DemoMood = Exclude<StoryMood, 'surprise'>;
+-
+-export interface SettingText {
+-  title: string;
+-  summary: string;
+-  place: string;
+-  portal: string;
+-  arrival: string;
+-  hiding: string;
+-  othersNom: string;
+-  OthersNom: string;
+-  othersDat: string;
+-  othersDesc: string;
+-  activity: string;
+-  gift: string;
+-  ret: string;
+-}
+-
+-export interface CreatureText {
+-  name: string;
+-  sound: string;
+-  indef: string;
+-  summary: string;
+-}
+-
+-export interface ArcText {
+-  paragraphs: string[];
+-  older: string;
+-  farewell: string;
+-  tagline: string;
+-}
+-
+-export interface LangPack {
+-  heroFallback: string;
+-  heroVars: (hero: string) => Record<string, string>;
+-  creatureVars: (name: string) => Record<string, string>;
+-  listJoin: (items: string[]) => string;
+-  lowercaseInterests: boolean;
+-  moods: Record<DemoMood, { opening: string; ending: string }>;
+-  settings: Record<SettingId, SettingText>;
+-  creatures: Record<CreatureId, CreatureText>;
+-  discovery: string;
+-  interestsLine: string;
+-  arcs: Record<ArcId, ArcText>;
+-  title: (hero: string | undefined, cname: string, settingTitle: string) => string;
+-  summary: (settingSummary: string, creatureSummary: string, tagline: string) => string;
+-}
+diff -ruN '--exclude=node_modules' a/src/services/imageService.ts b/src/services/imageService.ts
+--- a/src/services/imageService.ts	2026-10-02 14:17:54.000000000 +0000
++++ b/src/services/imageService.ts	2026-10-03 04:37:17.171498414 +0000
+@@ -1,6 +1,5 @@
+ import type { CoverImage, CoverScene, GeneratedStory, StoryRequest } from '../types/story';
+ import { createIllustratedCover } from './demo/coverArt';
+-import { pickWorld, resolveMood } from './demo/demoStoryEngine';
+ import { logTechnical, postJson } from './apiClient';
+ import { hashString } from '../utils/id';
+ 
+@@ -13,11 +12,19 @@
+ export const COVER_STYLE =
+   "Premium children's picture-book cover illustration. Warm, imaginative, calm. Modern European illustration with soft gouache textures and paper-cut depth, gentle glowing light, rich but harmonious colours. Not overly cartoonish. No text, letters or logos. No copyrighted or recognisable characters. Not in the style of any specific studio or living artist. Do not depict a real child.";
+ 
++/**
++ * Without an image provider a live story gets a NEUTRAL illustrated cover
++ * (it must not show an unrelated world). Example stories bring their own scene.
++ */
+ export function sceneFor(story: GeneratedStory, req: StoryRequest): CoverScene {
+   if (story.scene) return story.scene;
+-  const seed = hashString(story.title);
+-  const { setting, creature } = pickWorld(req);
+-  return { setting, creature, mood: resolveMood(req.storyMood, seed), seed };
++  return {
++    setting: 'forest',
++    creature: 'otter',
++    mood: req.storyMood === 'surprise' ? 'magical' : req.storyMood,
++    seed: hashString(story.title),
++    subject: 'abstract',
++  };
+ }
+ 
+ export function buildCoverPrompt(story: GeneratedStory, req: StoryRequest): string {
+diff -ruN '--exclude=node_modules' a/src/services/storyEngine/critic.ts b/src/services/storyEngine/critic.ts
+--- a/src/services/storyEngine/critic.ts	2026-10-03 03:54:14.000000000 +0000
++++ b/src/services/storyEngine/critic.ts	2026-10-03 04:36:25.644728348 +0000
+@@ -11,24 +11,68 @@
+   return ORDER.indexOf(a) <= ORDER.indexOf(b) ? a : b;
+ };
+ 
+-const STOP = /^(und|oder|der|die|das|ein|eine|mit|the|and|with|les|des|une|avec|dans|mein|meine|my|mon|ma|ich|i|je|im|in)$/i;
++/** Sentences that merely inject an interest into an unrelated story (the V1 failure). */
++export const INTEREST_INJECTION: RegExp[] = [
++  /thought about (all )?the things/i,
++  /things that make (a|the|your) heart beat faster/i,
++  /it felt as if this journey were heading/i,
++  /dachte an (all )?die dinge/i,
++  /das herz schneller schlagen lassen/i,
++  /als würde diese reise genau dorthin führen/i,
++  /pensa à tout ce qui fait battre/i,
++  /comme si ce voyage menait tout droit/i,
++];
++
++/** Names and places of the retired V1 template engine – must never appear in V2 output. */
++export const LEGACY_TEMPLATE_MARKERS = /mosslight|mooslicht|mousselune|pusteblume|dandelion station|pearlshine|perlmutt|cité de nacre|station pissenlit|moon-hoppers|mondhüpfer|sauteurs de lune/i;
++
++const STOP = new Set(['und', 'oder', 'der', 'die', 'das', 'ein', 'eine', 'einen', 'mit', 'the', 'and', 'with', 'les', 'des', 'une', 'avec', 'dans', 'mein', 'meine', 'my', 'mon', 'ma', 'ich', 'im', 'in', 'a', 'an', 'of', 'de', 'la', 'le', 'un', 'to', 'is', 'that', 'who', 'can', 'kann', 'nur', 'only', 'every', 'jeden', 'zum', 'zur', 'and', 'et', 'ou', 'qui', 'que']);
++
++const words = (phrase: string) =>
++  phrase.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter((w) => w.length > 2 && !STOP.has(w));
++
++/** Elements of the request in the child's own words ("red car", "fire truck + Max"). */
++export function requestElements(request: string): string[] {
++  return request
++    .split(/\s*(?:\+|,|;|\n|\band\b|\bund\b|\bet\b)\s*/i)
++    .map((s) => s.trim())
++    .filter((s) => words(s).length > 0)
++    .slice(0, 6);
++}
++
++function wordRegex(w: string) {
++  const stem = w.length <= 4 ? w : w.slice(0, Math.max(4, Math.ceil(w.length * 0.7)));
++  return new RegExp(`(^|[^\\p{L}])${stem.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'iu');
++}
++
++/** Does a paragraph contain ALL significant words of an element? */
++const containsElement = (paragraph: string, element: string) => words(element).every((w) => wordRegex(w).test(paragraph));
++
++export interface CoverageReport {
++  element: string;
++  paragraphs: number;
++  firstAt: number; // 0..1 position of first appearance, 1 = never
++}
++
++/** SWAP TEST heuristic: the subject must recur across the story and appear early. */
++export function personalizationReport(text: string, elements: string[]): CoverageReport[] {
++  const paras = text.split(/\n\s*\n/).filter((p) => p.trim());
++  return elements.map((element) => {
++    const hits = paras.map((p) => containsElement(p, element));
++    const first = hits.indexOf(true);
++    return { element, paragraphs: hits.filter(Boolean).length, firstAt: first === -1 ? 1 : first / Math.max(1, paras.length) };
++  });
++}
+ 
+-/** Rough SWAP TEST: are the request's core elements actually present in the story? */
+ export function personalizationCoverage(text: string, elements: string[]): number {
+   if (!elements.length) return 1;
+-  const lower = text.toLowerCase();
+-  const hit = elements.filter((el) => {
+-    const words = el.toLowerCase().split(/[^a-zà-ÿäöüß0-9]+/).filter((w) => w.length > 3 && !STOP.test(w));
+-    if (!words.length) return true;
+-    return words.some((w) => lower.includes(w.slice(0, Math.max(4, Math.ceil(w.length * 0.7)))));
+-  });
+-  return hit.length / elements.length;
++  return personalizationReport(text, elements).filter((r) => r.paragraphs > 0).length / elements.length;
+ }
+ 
+ /**
+- * Deterministic checks that run in every mode (also demo):
+- * forbidden phrasing, clichés used as defaults, length, sound-effect spam,
+- * name handling and a rough swap test.
++ * Deterministic checks – run in every mode, cost nothing:
++ * legacy template reuse, interest injection, swap test, forbidden phrasing,
++ * clichés used as defaults, length, sound-effect spam, name handling.
+  */
+ export function localCritique(
+   story: Pick<WrittenStory, 'text' | 'title'>,
+@@ -45,39 +89,56 @@
+   const text = story.text;
+   const lower = text.toLowerCase();
+ 
++  if (!story.title?.trim()) flag('writer', 'missing title', 'Give the story a title that belongs to it.');
++  if (LEGACY_TEMPLATE_MARKERS.test(text) || LEGACY_TEMPLATE_MARKERS.test(story.title))
++    flag('concept', 'retired V1 template content detected', 'Invent the story from the request – no stock worlds.');
++  if (INTEREST_INJECTION.some((re) => re.test(text)))
++    flag('concept', 'interest merely injected as a sentence', 'Make the requested subject drive premise and events instead of mentioning it.');
++
+   for (const phrase of GUIDANCE.forbiddenPhrasing[ctx.req.language] ?? GUIDANCE.forbiddenPhrasing.en ?? [])
+     if (lower.includes(phrase.toLowerCase())) flag(ctx.req.guidance?.length ? 'guidance' : 'writer', `forbidden phrasing "${phrase}"`, `Remove "${phrase}" – show, never lecture.`);
+ 
+   for (const c of detectCliches(text, ctx.req.request)) flag(c.layer, `cliché: ${c.note}`, `Replace the default "${c.note}" with something that belongs to this specific idea.`);
+ 
+-  const words = text.split(/\s+/).filter(Boolean).length;
++  const count = text.split(/\s+/).filter(Boolean).length;
+   const [min, max] = targetWords(ctx.req.child?.age ?? 6, ctx.req.desiredDurationMinutes);
+-  if (words < min * 0.7) flag('writer', `too short (${words} words)`, `Develop scenes and dialogue to about ${min}–${max} words.`);
+-  if (words > max * 1.4) flag('writer', `too long (${words} words)`, `Tighten to about ${min}–${max} words.`);
++  if (count < min * 0.7) flag('writer', `too short (${count} words)`, `Develop scenes and dialogue to about ${min}–${max} words.`);
++  if (count > max * 1.4) flag('writer', `too long (${count} words)`, `Tighten to about ${min}–${max} words.`);
+ 
+   const shouts = (text.match(/\b[A-ZÄÖÜ]{3,}[!.…]?(?=\s|$)/g) ?? []).filter((w) => !/^(OK|DJ|TV|UFO|NASA)$/.test(w)).length;
+   if (shouts > 6) flag('writer', `sound-effect overuse (${shouts})`, 'Keep at most two or three sound effects where they really help.');
+ 
+-  if (ctx.heroToken && ctx.req.child?.firstName && !text.includes(ctx.heroToken))
+-    flag('writer', 'protagonist token missing', `Use ${ctx.heroToken} for the child protagonist.`);
+-
+-  if (ctx.interpretation) {
+-    const coverage = personalizationCoverage(text, [...ctx.interpretation.nonNegotiables, ...ctx.interpretation.coreElements].slice(0, 8));
+-    if (coverage < 0.5)
+-      flag('concept', `swap test failed: only ${Math.round(coverage * 100)}% of the requested elements shape the story`, 'Rebuild the story so the child\'s actual request drives world, events and characters.');
++  const name = ctx.req.child?.firstName;
++  if (ctx.heroToken && name && !text.includes(ctx.heroToken)) flag('writer', 'protagonist token missing', `Use ${ctx.heroToken} for the child protagonist.`);
++  if (name && name !== ctx.heroToken) {
++    const wrongCase = new RegExp(`(^|[^\\p{L}])(${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})(?![\\p{L}])`, 'giu');
++    if ([...text.matchAll(wrongCase)].some((m) => m[2] !== name)) flag('writer', `name not capitalised as "${name}"`, `Write the name exactly as "${name}".`);
+   }
+ 
++  // SWAP TEST: requested elements must recur and appear early, not once in passing
++  const elements = ctx.interpretation?.nonNegotiables.length
++    ? ctx.interpretation.nonNegotiables
++    : requestElements(ctx.req.request);
++  const report = personalizationReport(text, elements.slice(0, 5));
++  const weak = report.filter((r) => r.paragraphs < 2 || r.firstAt > 0.35);
++  if (report.length && weak.length > report.length / 2)
++    flag(
++      'concept',
++      `swap test failed: ${weak.map((r) => `"${r.element}" in ${r.paragraphs} paragraph(s)`).join(', ')}`,
++      'Rebuild the story so the child\'s actual request drives premise, events and characters from the opening on.',
++    );
++
+   return { status: issues.length ? 'rewrite' : 'pass', problemLayer: layer, issues, rewriteInstructions: instructions };
+ }
+ 
+-/** The model critic (remote mode) – asks the 15 questions of the spec. */
++/** Model critic (granular mode). In efficient mode the critic runs inside the REVIEW call. */
+ export function modelCritique(req: EngineRequest, interpretation: Interpretation, story: WrittenStory, provider: LlmProvider): Promise<Critique> {
+   const user = JSON.stringify(
+     {
+       request: JSON.parse(requestBlock(req)),
+       nonNegotiables: interpretation.nonNegotiables,
+       specialRules: interpretation.specialRules,
+-      guidanceRequested: req.guidance?.length || req.customGuidance ? true : false,
++      guidanceRequested: Boolean(req.guidance?.length || req.customGuidance),
+       story: { title: story.title, text: story.text },
+     },
+     null,
+diff -ruN '--exclude=node_modules' a/src/services/storyEngine/demo/demoEngine.ts b/src/services/storyEngine/demo/demoEngine.ts
+--- a/src/services/storyEngine/demo/demoEngine.ts	2026-10-03 03:59:25.000000000 +0000
++++ b/src/services/storyEngine/demo/demoEngine.ts	2026-10-03 04:37:02.607903397 +0000
+@@ -1,121 +1,59 @@
+ // ─────────────────────────────────────────────────────────────
+-// Demo mode for Story Engine V2 – no model, no network, no costs.
++// DEMO MODE – architecturally honest.
+ //
+-// 1. Benchmark fixtures: hand-written stories in different forms,
+-//    chosen by what the child actually asked for (DE).
+-// 2. Requests without a fitting fixture use the V1 on-device
+-//    template engine – explicitly marked 'v2-demo-template'.
++// Inventing a story from ANY idea needs a language model. Without a
++// configured story provider Lumetta does NOT pretend: it never routes the
++// child's request into a template. Instead the UI says so plainly and
++// offers clearly labelled EXAMPLE stories (pre-written, not derived from
++// the child's input). There is no runtime matching of requests to examples.
+ //
+-// The child's request is never silently swapped for an unrelated
+-// fixture: a fixture is only used when its pattern matches.
++// The fixtures in ./fixtures.ts double as quality benchmarks for tests.
+ // ─────────────────────────────────────────────────────────────
+-import type { CoverScene, StoryRequest } from '../../../types/story';
+-import { familyForTheme } from '../../../config/catalog';
++import type { CoverScene } from '../../../types/story';
+ import { estimateDurationSeconds } from '../../../config/ageProfiles';
+-import { generateDemoStory } from '../../demo/demoStoryEngine';
+ import { createId, hashString } from '../../../utils/id';
+-import { normalize } from '../../../utils/text';
+-import { localCritique } from '../critic';
+ import { HERO_TOKEN } from '../prompts';
+-import type { EngineHooks } from '../storyEngine';
+-import type { EngineRequest, EngineResult, GuidancePlan } from '../schemas';
++import type { EngineResult } from '../schemas';
+ import { FIXTURES, type DemoFixture } from './fixtures';
+ 
+-export function matchFixture(req: EngineRequest): DemoFixture | undefined {
+-  const text = normalize(`${req.request} ${(req.interests ?? []).join(' ')}`);
+-  return FIXTURES.find((f) => f.language === req.language && f.match.every((re) => re.test(text)));
++export interface ExampleInfo {
++  id: string;
++  title: string;
++  storyForm: string;
++  language: DemoFixture['language'];
++  age: number;
+ }
+ 
+-const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
++/** Example stories shown in demo mode – the same list for every request. */
++export function listExamples(): ExampleInfo[] {
++  return FIXTURES.map((f) => ({ id: f.id, title: f.title, storyForm: f.storyForm, language: f.language, age: f.age }));
++}
+ 
+-export interface DemoEngineResult extends EngineResult {
++export interface ExampleResult extends EngineResult {
+   cover: CoverScene;
+ }
+ 
+-export async function runDemoEngine(req: EngineRequest, legacy: StoryRequest, hooks: EngineHooks & { paceMs?: number } = {}): Promise<DemoEngineResult> {
+-  const stage = hooks.onStage ?? (() => {});
+-  const pace = hooks.paceMs ?? 1200;
+-  const fixture = matchFixture(req);
+-  const age = req.child?.age ?? 6;
+-
+-  stage('interpreting');
+-  await wait(pace * 0.6);
+-  stage('imagining');
+-  await wait(pace * 0.6);
+-  stage('architecting');
+-  await wait(pace * 0.6);
+-  stage('writing');
+-  await wait(pace * 0.6);
+-  stage('critiquing');
+-
+-  if (fixture) {
+-    // the child has a name → keep the token (restored on the device); otherwise the fixture's own hero
+-    const text = req.child?.firstName ? fixture.text : fixture.text.split(HERO_TOKEN).join(fixture.defaultHero);
+-    const title = req.child?.firstName ? fixture.title : fixture.title.split(HERO_TOKEN).join(fixture.defaultHero);
+-    const critique = localCritique({ text, title }, { req, interpretation: fixture.interpretation });
+-    if (critique.status !== 'pass' && import.meta.env?.DEV) console.info('[lumetta:demo-critic]', fixture.id, critique.issues);
+-
+-    const families = (req.guidance ?? []).map((g) => familyForTheme(g as never)).filter(Boolean) as string[];
+-    const moment = families.map((f) => fixture.naturalGuidance[f as keyof DemoFixture['naturalGuidance']]).find(Boolean);
+-    const guidance: GuidancePlan = families.length
+-      ? moment
+-        ? { included: true, theme: req.guidance?.[0], opportunity: moment, integrationNotes: 'already part of the story – never explained' }
+-        : { included: false, theme: req.guidance?.[0], reducedReason: 'This demo story has no natural moment for the theme; story quality wins.' }
+-      : { included: false };
+-
+-    stage('done');
+-    return {
+-      story: { id: createId(), title, language: req.language, age, text, estimatedDurationSeconds: estimateDurationSeconds(text, age) },
+-      metadata: {
+-        storyForm: fixture.storyForm,
+-        mood: fixture.mood,
+-        summary: fixture.summary,
+-        coverPrompt: fixture.candidates.find((c) => c.id === fixture.chosen)?.premise ?? fixture.summary,
+-        fingerprint: fixture.fingerprint,
+-        engine: 'v2-demo-fixture',
+-      },
+-      cover: { ...fixture.cover, seed: hashString(fixture.id) },
+-      debug: {
+-        interpretation: fixture.interpretation,
+-        candidates: fixture.candidates,
+-        selection: { candidateId: fixture.chosen, reasoning: `Benchmark fixture ${fixture.benchmark}` },
+-        guidance,
+-        critiques: [critique],
+-        revisions: 0,
+-      },
+-    };
+-  }
+-
+-  // No fixture fits this request: V1 on-device template engine as an honest fallback.
+-  const legacyStory = generateDemoStory(legacy);
+-  stage('done');
++/**
++ * Builds an example story chosen EXPLICITLY by the user. The child's name may
++ * be used as the hero (that is honest: the parent chose it), but the story is
++ * labelled 'v2-demo-example' everywhere.
++ */
++export function buildExample(id: string, firstName?: string): ExampleResult {
++  const f = FIXTURES.find((x) => x.id === id);
++  if (!f) throw new Error(`unknown example ${id}`);
++  const hero = firstName || f.defaultHero;
++  const text = f.text.split(HERO_TOKEN).join(hero);
++  const title = f.title.split(HERO_TOKEN).join(hero);
+   return {
+-    story: {
+-      id: createId(),
+-      title: legacyStory.title,
+-      language: legacyStory.language,
+-      age,
+-      text: legacyStory.story,
+-      estimatedDurationSeconds: legacyStory.estimatedDuration,
+-    },
++    story: { id: createId(), title, language: f.language, age: f.age, text, estimatedDurationSeconds: estimateDurationSeconds(text, f.age) },
+     metadata: {
+-      storyForm: 'demo template',
+-      mood: [legacyStory.scene?.mood ?? 'adventure'],
+-      summary: legacyStory.summary,
+-      coverPrompt: legacyStory.coverPrompt,
+-      fingerprint: {
+-        genre: 'template adventure',
+-        scale: 'medium',
+-        settingType: legacyStory.scene?.setting ?? '',
+-        centralDevice: 'template arc',
+-        characterTypes: [legacyStory.scene?.creature ?? ''],
+-        structureType: 'template',
+-        endingStyle: 'return home',
+-        majorMotifs: [],
+-      },
+-      engine: 'v2-demo-template',
++      storyForm: f.storyForm,
++      mood: f.mood,
++      summary: f.summary,
++      coverPrompt: f.summary,
++      fingerprint: f.fingerprint,
++      engine: 'v2-demo-example',
+     },
+-    cover: legacyStory.scene ?? { setting: 'forest', creature: 'otter', mood: 'adventure', seed: 1 },
+-    debug: { critiques: [], revisions: 0 },
++    cover: { ...f.cover, seed: hashString(f.id) },
+   };
+ }
+diff -ruN '--exclude=node_modules' a/src/services/storyEngine/demo/fixtures.ts b/src/services/storyEngine/demo/fixtures.ts
+--- a/src/services/storyEngine/demo/fixtures.ts	2026-10-03 03:59:05.000000000 +0000
++++ b/src/services/storyEngine/demo/fixtures.ts	2026-10-03 04:37:02.618833760 +0000
+@@ -1,9 +1,9 @@
+ // ─────────────────────────────────────────────────────────────
+-// DEMO / DEVELOPMENT FIXTURES – quality benchmarks, not templates.
+-// Five very different story forms for the five benchmark requests.
+-// Each is hand-written natively in German for listening, and keeps
+-// the pipeline's intermediate artefacts so the engine stays
+-// inspectable without a live model.
++// DEMO EXAMPLES / QUALITY BENCHMARKS – not templates, not special cases.
++// Five pre-written stories in very different forms. They are never matched
++// against a child's request at runtime: in demo mode the parent picks one
++// explicitly as a labelled example; in tests they serve as quality
++// benchmarks for the local critic. `match` is used by tests only.
+ // ─────────────────────────────────────────────────────────────
+ import type { CoverScene, LanguageCode } from '../../../types/story';
+ import type { GuidanceFamily } from '../../../config/catalog';
+diff -ruN '--exclude=node_modules' a/src/services/storyEngine/engineConfig.ts b/src/services/storyEngine/engineConfig.ts
+--- a/src/services/storyEngine/engineConfig.ts	1970-01-01 00:00:00.000000000 +0000
++++ b/src/services/storyEngine/engineConfig.ts	2026-10-03 04:35:47.611825811 +0000
+@@ -0,0 +1,23 @@
++// ─────────────────────────────────────────────────────────────
++// Story Engine V2 – central engine configuration.
++//
++// mode 'efficient' (default): the logical stages stay separate in code and
++//   in the prompt, but compatible stages share one structured call:
++//     1. PLAN    = Interpreter + Imagination + Selector + Architect + Characters + Guidance
++//     2. WRITE   = Age/language-aware writer
++//     3. REVIEW  = Critic + Fingerprint (one small call)
++//   → typically 3 model calls per story, at most 5 with one rewrite.
++//
++// mode 'granular': one call per stage (≈ 9–14 calls). Useful for debugging
++//   or for very small/cheap models that struggle with combined JSON.
++// ─────────────────────────────────────────────────────────────
++export type EngineMode = 'efficient' | 'granular';
++
++export const ENGINE_CONFIG = {
++  mode: 'efficient' as EngineMode,
++  /** full rewrite cycles after the first draft – never unbounded */
++  maxRewrites: 1,
++  /** model-based critic (the deterministic local critic always runs, free) */
++  modelCritic: true,
++  candidates: 4,
++} as const;
+diff -ruN '--exclude=node_modules' a/src/services/storyEngine/plan.ts b/src/services/storyEngine/plan.ts
+--- a/src/services/storyEngine/plan.ts	1970-01-01 00:00:00.000000000 +0000
++++ b/src/services/storyEngine/plan.ts	2026-10-03 04:36:49.792853412 +0000
+@@ -0,0 +1,40 @@
++import type { LlmProvider } from './provider';
++import { requestBlock } from './prompts';
++import { GUIDANCE_THEMES } from '../../config/catalog';
++import { ENGINE_CONFIG } from './engineConfig';
++import { tooSimilarPairs } from './imagination';
++import { validatePlan, type EngineRequest, type StoryPlan } from './schemas';
++
++/**
++ * Efficient mode – stages 1–6 (Interpreter, Imagination, Selector, Architect,
++ * Characters, Guidance) as separate sections of ONE structured call.
++ * The local diversity check can trigger one re-plan.
++ */
++export async function plan(
++  req: EngineRequest,
++  provider: LlmProvider,
++  opts: { feedback?: string[]; avoidPremises?: string[] } = {},
++): Promise<StoryPlan> {
++  const guidance = (req.guidance ?? []).map((id) => {
++    const t = GUIDANCE_THEMES.find((x) => x.id === id);
++    return t ? { theme: t.id, approach: t.storyApproach } : { theme: id };
++  });
++  const base = {
++    request: JSON.parse(requestBlock(req)),
++    numberOfCandidates: ENGINE_CONFIG.candidates,
++    requestedGuidance: guidance.length || req.customGuidance ? { themes: guidance, parentDescription: req.customGuidance || undefined } : 'none',
++    recentFingerprints: req.recentFingerprints?.slice(0, 6) ?? [],
++    rejectedPremises: opts.avoidPremises?.length ? opts.avoidPremises : undefined,
++    revisionNotes: opts.feedback?.length ? opts.feedback : undefined,
++  };
++  let result = await provider.generateStructured('plan', JSON.stringify(base, null, 2), validatePlan);
++  const similar = tooSimilarPairs(result.candidates);
++  if (!result.diversityCheck.genuinelyDifferent || similar.length) {
++    const retry = {
++      ...base,
++      diversityFeedback: `Candidates were the same story in different costumes (${similar.map((p) => p.join(' ≈ ')).join(', ') || result.diversityCheck.note}). Produce genuinely different situations, mechanisms, tones and scales.`,
++    };
++    result = await provider.generateStructured('plan', JSON.stringify(retry, null, 2), validatePlan);
++  }
++  return result;
++}
+diff -ruN '--exclude=node_modules' a/src/services/storyEngine/prompts.ts b/src/services/storyEngine/prompts.ts
+--- a/src/services/storyEngine/prompts.ts	2026-10-03 03:52:39.000000000 +0000
++++ b/src/services/storyEngine/prompts.ts	2026-10-03 04:35:47.644145167 +0000
+@@ -151,7 +151,46 @@
+   },
+ } as const;
+ 
+-export type StageName = keyof typeof PROMPTS;
++/**
++ * Combined prompts for the efficient mode. The stages remain distinct
++ * sections of ONE structured answer – the engine does not collapse into
++ * "write a nice story about {interest}".
++ */
++export const COMBINED_PROMPTS = {
++  plan: {
++    system: [
++      'You are the PLANNING part of a children\'s story engine. Work through the stages below IN ORDER and return all of them in one JSON object. You do NOT write the story text.',
++      CORE_RULES,
++      'STAGE 1 – INTERPRETER: understand the request without turning it into a conventional story. Never invent requirements. Do not assume fantasy, adventure, magic, a companion, a villain, a quest or a lesson. Preserve unusual details and special RULES (e.g. "only on Tuesdays"). Name the natural scale of the idea.',
++      'STAGE 2 – IMAGINATION: invent CANDIDATES that are FUNDAMENTALLY different – in central situation, mechanism, tone, scale, conflict/curiosity and character dynamics. Same plot in another place is NOT different. At least one candidate stays at the natural scale; realistic ideas may stay realistic. Use recent fingerprints to avoid repeating mechanisms and endings unless the child asked for them. Run an honest diversity check.',
++      'STAGE 3 – SELECTOR: choose the candidate with the strongest potential for THIS child – not automatically the biggest, most magical or most educational. The requested subject must be CAUSALLY central (swap test: if it could be replaced by an unrelated subject without changing the story, reject the candidate).',
++      'STAGE 4 – ARCHITECT: a flexible concept for the chosen candidate. No forced three acts, villain, quest, companion, twist or lesson. Choose the form the idea wants. The opening needs an age-appropriate reason to keep listening, not drama.',
++      'STAGE 5 – CHARACTERS: important characters behave like characters (precise, stubborn, dramatic, shy, lazy, overconfident…), not plot functions. Children may make mistakes; adults need not know everything.',
++      'STAGE 6 – GUIDANCE (only if requested): GOOD STORY FIRST, then find a natural opportunity. Never a lesson, diagnosis or therapy. If it would damage the story, reduce or omit it and say why.',
++      'Avoid default tropes (magic door, glowing object, enchanted forest, lost-object quest, cute helper animal, wise elder, chosen child, three trials, dream ending, souvenir proof, "from that day on") unless THIS idea calls for them.',
++      JSON_ONLY,
++      'Schema: {"interpretation": {"explicitRequest": string, "coreElements": string[], "requestedCharacters": string[], "requestedSetting": string|null, "requestedEvents": string[], "nonNegotiables": string[], "creativeFreedom": string[], "specialRules": string[], "mostInterestingPotential": string, "naturalScale": "intimate"|"small"|"medium"|"expansive", "possibleStoryEnergy": string[], "constraints": string[]}, "candidates": [{"id": string, "premise": string, "whyInteresting": string, "storyEnergy": string[], "scale": string, "centralDevice": string, "characterPotential": string, "distinctiveElement": string, "possibleWeakness": string}], "diversityCheck": {"genuinelyDifferent": boolean, "note": string}, "selection": {"candidateId": string, "reasoning": string}, "architecture": {"corePremise": string, "whyWorthHearing": string, "storyForm": string, "protagonist": {"identity": string, "immediateWant": string, "agency": string}, "setting": string, "storySpecificDetails": string[], "curiosityMechanism": string, "development": string, "possibleSurprises": string[], "importantChoices": string[], "endingDirection": string, "thingsToAvoid": string[]}, "characters": [{"name": string, "role": string, "personality": string, "wants": string, "dislikes": string, "oddHabit": string, "speechStyle": string, "unexpectedTrait": string, "relationshipToProtagonist": string}], "guidance": {"included": boolean, "theme": string, "opportunity": string, "integrationNotes": string, "reducedReason": string}}',
++    ].join('\n\n'),
++  },
++  review: {
++    system: [
++      'You are the STORY CRITIC and FINGERPRINTER. Evaluate honestly; do not rewrite.',
++      'Critic questions: would a child of this age want to know what happens next? Is the request genuinely central (SWAP TEST: could the requested subject be swapped for an unrelated one without changing much)? Anything pasted in? Generic AI-story patterns used as defaults? Recognisable personalities? Narrator explaining what scenes show? Moral explanation? Coherent surprises? Scale fits the idea? Ending belongs to THIS story? Protagonist agency? Natural language? Good for listening? Guidance invisible?',
++      'problemLayer = EARLIEST responsible stage: "concept" (generic idea / superficial personalisation), "architect" (predictable/shapeless plot, wrong scale), "character", "guidance", "writer" (prose, rhythm, language). Pass only if genuinely good.',
++      'Fingerprint: privacy-minimised summary to avoid repetition – no names, no personal details, no story text.',
++      JSON_ONLY,
++      'Schema: {"critique": {"status": "pass"|"rewrite", "problemLayer": null|"writer"|"character"|"guidance"|"architect"|"concept", "issues": string[], "rewriteInstructions": string[]}, "fingerprint": {"genre": string, "scale": "intimate"|"small"|"medium"|"expansive", "settingType": string, "centralDevice": string, "characterTypes": string[], "structureType": string, "endingStyle": string, "majorMotifs": string[]}}',
++    ].join('\n\n'),
++  },
++} as const;
++
++export type StageName = keyof typeof PROMPTS | keyof typeof COMBINED_PROMPTS;
++
++export function systemPrompt(stage: StageName): string {
++  return stage in COMBINED_PROMPTS
++    ? COMBINED_PROMPTS[stage as keyof typeof COMBINED_PROMPTS].system
++    : PROMPTS[stage as keyof typeof PROMPTS].system;
++}
+ 
+ /** Default sampling per stage – creative stages run warmer than analytic ones. */
+ export const STAGE_SETTINGS: Record<StageName, { temperature: number; maxTokens: number }> = {
+@@ -164,6 +203,8 @@
+   writer: { temperature: 0.85, maxTokens: 4000 },
+   critic: { temperature: 0.2, maxTokens: 900 },
+   fingerprint: { temperature: 0.1, maxTokens: 400 },
++  plan: { temperature: 0.9, maxTokens: 3800 },
++  review: { temperature: 0.2, maxTokens: 1200 },
+ };
+ 
+ export function requestBlock(req: {
+diff -ruN '--exclude=node_modules' a/src/services/storyEngine/provider.ts b/src/services/storyEngine/provider.ts
+--- a/src/services/storyEngine/provider.ts	2026-10-03 03:52:54.000000000 +0000
++++ b/src/services/storyEngine/provider.ts	2026-10-03 04:35:47.644404476 +0000
+@@ -7,7 +7,7 @@
+ // ─────────────────────────────────────────────────────────────
+ import { APP_CONFIG } from '../../config/app';
+ import { fetchWithTimeout, logTechnical } from '../apiClient';
+-import { PROMPTS, STAGE_SETTINGS, type StageName } from './prompts';
++import { STAGE_SETTINGS, systemPrompt, type StageName } from './prompts';
+ import { SchemaError } from './schemas';
+ 
+ export class EngineError extends Error {
+@@ -50,7 +50,7 @@
+         headers: { 'Content-Type': 'application/json' },
+         body: JSON.stringify({
+           stage,
+-          system: PROMPTS[stage].system + extraSystem,
++          system: systemPrompt(stage) + extraSystem,
+           user,
+           json,
+           temperature: settings.temperature,
+diff -ruN '--exclude=node_modules' a/src/services/storyEngine/review.ts b/src/services/storyEngine/review.ts
+--- a/src/services/storyEngine/review.ts	1970-01-01 00:00:00.000000000 +0000
++++ b/src/services/storyEngine/review.ts	2026-10-03 04:36:49.794110597 +0000
+@@ -0,0 +1,24 @@
++import type { LlmProvider } from './provider';
++import { requestBlock } from './prompts';
++import { validateReview, type Critique, type EngineRequest, type Interpretation, type StoryFingerprint, type WrittenStory } from './schemas';
++
++/** Efficient mode – Critic + Fingerprint in one small structured call. */
++export function review(
++  req: EngineRequest,
++  interpretation: Interpretation,
++  story: WrittenStory,
++  provider: LlmProvider,
++): Promise<{ critique: Critique; fingerprint: StoryFingerprint | null }> {
++  const user = JSON.stringify(
++    {
++      request: JSON.parse(requestBlock(req)),
++      nonNegotiables: interpretation.nonNegotiables,
++      specialRules: interpretation.specialRules,
++      guidanceRequested: Boolean(req.guidance?.length || req.customGuidance),
++      story: { title: story.title, text: story.text },
++    },
++    null,
++    2,
++  );
++  return provider.generateStructured('review', user, validateReview);
++}
+diff -ruN '--exclude=node_modules' a/src/services/storyEngine/schemas.ts b/src/services/storyEngine/schemas.ts
+--- a/src/services/storyEngine/schemas.ts	2026-10-03 03:51:54.000000000 +0000
++++ b/src/services/storyEngine/schemas.ts	2026-10-03 04:35:55.084630366 +0000
+@@ -145,7 +145,9 @@
+     coverPrompt: string;
+     fingerprint: StoryFingerprint;
+     scenes?: SceneSketch[];
+-    engine: 'v2-remote' | 'v2-demo-fixture' | 'v2-demo-template';
++    engine: 'v2-remote' | 'v2-demo-example';
++    /** remaining critic issues if the rewrite budget was exhausted (development info) */
++    qualityWarnings?: string[];
+   };
+   /** development only – never shown in the child-facing UI */
+   debug?: {
+@@ -326,3 +328,33 @@
+     majorMotifs: strArr(raw.majorMotifs).slice(0, 8),
+   };
+ }
++
++// ── efficient mode: combined plan + review ──────────────────
++export interface StoryPlan {
++  interpretation: Interpretation;
++  candidates: Candidate[];
++  diversityCheck: { genuinelyDifferent: boolean; note: string };
++  selection: Selection;
++  architecture: Architecture;
++  characters: CharacterSheet[];
++  guidance: GuidancePlan;
++}
++
++export function validatePlan(raw: unknown): StoryPlan {
++  if (!isObj(raw)) throw new SchemaError('plan', 'not an object');
++  const imagination = validateImagination({ candidates: raw.candidates, diversityCheck: raw.diversityCheck });
++  return {
++    interpretation: validateInterpretation(raw.interpretation),
++    candidates: imagination.candidates,
++    diversityCheck: imagination.diversityCheck,
++    selection: validateSelection(raw.selection ?? {}, imagination.candidates),
++    architecture: validateArchitecture(raw.architecture),
++    characters: raw.characters === undefined ? [] : validateCharacters({ characters: raw.characters }),
++    guidance: isObj(raw.guidance) ? validateGuidancePlan(raw.guidance) : { included: false },
++  };
++}
++
++export function validateReview(raw: unknown): { critique: Critique; fingerprint: StoryFingerprint | null } {
++  if (!isObj(raw)) throw new SchemaError('review', 'not an object');
++  return { critique: validateCritique(raw.critique ?? {}), fingerprint: validateFingerprint(raw.fingerprint) };
++}
+diff -ruN '--exclude=node_modules' a/src/services/storyEngine/storyEngine.ts b/src/services/storyEngine/storyEngine.ts
+--- a/src/services/storyEngine/storyEngine.ts	2026-10-03 03:54:31.000000000 +0000
++++ b/src/services/storyEngine/storyEngine.ts	2026-10-03 04:37:02.605986684 +0000
+@@ -21,6 +21,10 @@
+ import { createFingerprint } from './fingerprint';
+ import { HERO_TOKEN } from './prompts';
+ import type { LlmProvider } from './provider';
++import { ENGINE_CONFIG } from './engineConfig';
++import { plan } from './plan';
++import { review } from './review';
++import { localFingerprint } from './fingerprint';
+ import type { Architecture, Candidate, CharacterSheet, Critique, EngineRequest, EngineResult, GuidancePlan, Interpretation, WrittenStory } from './schemas';
+ 
+ export type EngineStage =
+@@ -43,9 +47,92 @@
+   debug?: boolean;
+ }
+ 
+-export async function runStoryEngine(req: EngineRequest, provider: LlmProvider, hooks: EngineHooks = {}): Promise<EngineResult> {
++/** Single entry point – every request takes the same V2 path. */
++export function runStoryEngine(req: EngineRequest, provider: LlmProvider, hooks: EngineHooks = {}): Promise<EngineResult> {
++  return ENGINE_CONFIG.mode === 'granular' ? runGranular(req, provider, hooks) : runEfficient(req, provider, hooks);
++}
++
++/**
++ * EFFICIENT MODE (default): PLAN → WRITE → REVIEW, ≈ 3 calls.
++ * Local critic always runs first (free). A failed critique returns to the
++ * earliest responsible stage: concept/architect → re-PLAN, otherwise re-WRITE.
++ * Bounded by ENGINE_CONFIG.maxRewrites – no endless cost loops.
++ */
++async function runEfficient(req: EngineRequest, provider: LlmProvider, hooks: EngineHooks): Promise<EngineResult> {
++  const stage = hooks.onStage ?? (() => {});
++  const maxRewrites = hooks.maxRevisions ?? ENGINE_CONFIG.maxRewrites;
++  const critiques: Critique[] = [];
++  const heroToken = req.child?.firstName ? HERO_TOKEN : undefined;
++
++  stage('interpreting');
++  let p = await plan(req, provider);
++  stage('characters');
++  let chosen = p.candidates.find((c) => c.id === p.selection.candidateId) ?? p.candidates[0];
++
++  stage('writing');
++  let story = await write(req, { interpretation: p.interpretation, architecture: p.architecture, characters: p.characters, guidance: p.guidance }, provider);
++  let fingerprint: EngineResult['metadata']['fingerprint'] | null = null;
++  let revisions = 0;
++
++  for (let round = 0; ; round++) {
++    stage('critiquing');
++    let critique = localCritique(story, { req, interpretation: p.interpretation, heroToken });
++    // model critic only when the free checks pass – saves a call on obvious failures
++    if (critique.status === 'pass' && ENGINE_CONFIG.modelCritic) {
++      try {
++        const r = await review(req, p.interpretation, story, provider);
++        critique = r.critique;
++        fingerprint = r.fingerprint;
++      } catch {
++        /* the local critic already passed – a failing review must not cost the story */
++      }
++    }
++    critiques.push(critique);
++    if (critique.status === 'pass' || round >= maxRewrites) break;
++
++    revisions++;
++    stage('rewriting');
++    const feedback = [...critique.issues.map((i) => `Issue: ${i}`), ...critique.rewriteInstructions];
++    const layer = critique.problemLayer ?? 'writer';
++    if (layer === 'concept' || layer === 'architect') {
++      p = await plan(req, provider, { feedback, avoidPremises: layer === 'concept' ? [chosen.premise] : undefined });
++      chosen = p.candidates.find((c) => c.id === p.selection.candidateId) ?? p.candidates[0];
++    }
++    stage('writing');
++    story = await write(req, { interpretation: p.interpretation, architecture: p.architecture, characters: p.characters, guidance: p.guidance }, provider, feedback);
++  }
++
++  const last = critiques[critiques.length - 1];
++  stage('done');
++  return {
++    story: {
++      id: createId(),
++      title: story.title,
++      language: req.language,
++      age: req.child?.age ?? 6,
++      text: story.text,
++      estimatedDurationSeconds: estimateDurationSeconds(story.text, req.child?.age ?? 6),
++    },
++    metadata: {
++      storyForm: p.architecture.storyForm,
++      mood: chosen.storyEnergy,
++      summary: story.summary,
++      coverPrompt: story.coverScene || chosen.premise,
++      fingerprint: fingerprint ?? localFingerprint(chosen, p.architecture),
++      scenes: story.scenes,
++      engine: 'v2-remote',
++      qualityWarnings: last.status === 'rewrite' ? last.issues : undefined,
++    },
++    debug: hooks.debug
++      ? { interpretation: p.interpretation, candidates: p.candidates, selection: p.selection, architecture: p.architecture, characters: p.characters, guidance: p.guidance, critiques, revisions }
++      : { critiques, revisions },
++  };
++}
++
++/** GRANULAR MODE: one call per stage (debugging / small models). */
++async function runGranular(req: EngineRequest, provider: LlmProvider, hooks: EngineHooks = {}): Promise<EngineResult> {
+   const stage = hooks.onStage ?? (() => {});
+-  const maxRevisions = hooks.maxRevisions ?? 2;
++  const maxRevisions = hooks.maxRevisions ?? ENGINE_CONFIG.maxRewrites;
+   const critiques: Critique[] = [];
+ 
+   stage('interpreting');
+diff -ruN '--exclude=node_modules' a/src/services/storyService.ts b/src/services/storyService.ts
+--- a/src/services/storyService.ts	2026-10-03 04:01:12.000000000 +0000
++++ b/src/services/storyService.ts	2026-10-03 04:38:10.621842089 +0000
+@@ -5,9 +5,8 @@
+ import { getBackendStatus, logTechnical, ServiceError } from './apiClient';
+ import { screenText } from './safetyService';
+ import { splitParagraphs } from '../utils/text';
+-import { hashString } from '../utils/id';
+ import { runStoryEngine, type EngineStage } from './storyEngine/storyEngine';
+-import { matchFixture, runDemoEngine } from './storyEngine/demo/demoEngine';
++import { buildExample } from './storyEngine/demo/demoEngine';
+ import { RemoteProvider } from './storyEngine/provider';
+ import { loadRecentFingerprints, rememberFingerprint } from './storyEngine/fingerprint';
+ import { HERO_TOKEN } from './storyEngine/prompts';
+@@ -16,9 +15,12 @@
+ /**
+  * Story service – the single entry point the UI uses (unchanged API).
+  *
+- *  Story Engine V2
+- *   REMOTE → services/storyEngine/storyEngine.ts, models via POST /api/llm
+- *   DEMO   → services/storyEngine/demo/demoEngine.ts (benchmark fixtures, V1 template fallback)
++ *  Story Engine V2 – ONE path for every request:
++ *   services/storyEngine/storyEngine.ts → provider (POST /api/llm) → any configured model
++ *
++ *  Without a story provider there is NO generation: createStory() throws
++ *  NoStoryProvider and the UI says so honestly. Pre-written example stories
++ *  are only available through createExampleStory(), chosen explicitly.
+  *
+  * Privacy: the child's first name never leaves the device. It is replaced by
+  * {{HERO}} in everything sent to the server and restored here afterwards.
+@@ -32,6 +34,27 @@
+   }
+ }
+ 
++/** Thrown when no story provider is configured (e.g. GitHub Pages without an API). */
++export class NoStoryProvider extends Error {
++  constructor() {
++    super('no story provider configured');
++    this.name = 'NoStoryProvider';
++  }
++}
++
++export async function isStoryServiceAvailable(): Promise<boolean> {
++  return (await getBackendStatus()).story;
++}
++
++const nameRegex = (name: string) => new RegExp(`(^|[^\\p{L}])(${escape(name)})(?![\\p{L}])`, 'giu');
++
++/** Restore the hero token and enforce the correct spelling of the name everywhere. */
++export function finalizeText(text: string, name: string): string {
++  let out = text.split(HERO_TOKEN).join(name);
++  if (name) out = out.replace(nameRegex(name), (_m: string, pre: string) => pre + name);
++  return out.replace(/[ \t]{2,}/g, ' ');
++}
++
+ export interface CreateStoryOptions {
+   onStage?: (stage: GenerationStage) => void;
+ }
+@@ -95,72 +118,63 @@
+   };
+ 
+   const status = await getBackendStatus();
++  if (!status.story) throw new NoStoryProvider();
+   const engineReq = toEngineRequest(req);
+   const started = Date.now();
+   emit('finding');
+ 
+   let result: EngineResult;
+-  let coverScene: CoverScene | undefined;
+   try {
+-    if (status.story) {
+-      result = await runStoryEngine(forRemote(engineReq), new RemoteProvider(), { onStage, debug: Boolean(import.meta.env?.DEV) });
+-    } else {
+-      const demo = await runDemoEngine(engineReq, req, { onStage, paceMs: APP_CONFIG.demoStageMs });
+-      result = demo;
+-      coverScene = demo.cover;
+-    }
++    result = await runStoryEngine(forRemote(engineReq), new RemoteProvider(), { onStage, debug: Boolean(import.meta.env?.DEV) });
+   } catch (err) {
+     logTechnical('story-engine', err);
+     throw err instanceof ServiceError ? err : new ServiceError('story_failed', 'Story Engine failed', err);
+   }
+-  if (import.meta.env?.DEV && result.debug) console.info('[lumetta:story-engine]', result.metadata.engine, result.debug);
++  if (import.meta.env?.DEV && result.debug) console.info('[lumetta:story-engine]', result.debug);
+ 
+-  // restore the name on the device
+   const name = engineReq.child?.firstName ?? '';
+-  const restore = (t: string) => t.split(HERO_TOKEN).join(name).replace(/[ \t]{2,}/g, ' ');
+-  const paragraphs = splitParagraphs(restore(result.story.text));
+-  if (!paragraphs.length) throw new ServiceError('empty_story', 'Engine returned no text');
+-
+-  const generated: GeneratedStory = {
+-    title: restore(result.story.title).trim(),
+-    summary: restore(result.metadata.summary ?? ''),
+-    story: paragraphs.join('\n\n'),
+-    paragraphs,
+-    coverPrompt: result.metadata.coverPrompt.split(HERO_TOKEN).join('the child'),
+-    estimatedDuration: result.story.estimatedDurationSeconds,
+-    age: req.childAge,
+-    language: result.story.language,
+-  };
+-
++  const story = toStory(result, req, name);
+   emit('magic');
+-  // cover: demo scenes come with the result; remote stories get a matching composition where possible
+-  const fixtureCover = matchFixture(engineReq)?.cover;
+-  const scene: CoverScene = coverScene ?? (fixtureCover ? { ...fixtureCover, seed: hashString(generated.title) } : sceneFor(generated, req));
+-  generated.scene = scene;
+-  const cover = status.story ? await createCover(generated, req, status.image) : createIllustratedCover(scene);
+-
++  story.cover = await createCover(story, req, status.image);
+   const minimum = APP_CONFIG.demoStageMs * 3;
+   const elapsed = Date.now() - started;
+   if (elapsed < minimum) await wait(minimum - elapsed);
+   emit('ready');
+ 
+   rememberFingerprint(result.metadata.fingerprint);
++  return story;
++}
+ 
++/** Shared mapping from an engine result to a library story. */
++function toStory(result: EngineResult, req: StoryRequest, name: string, scene?: CoverScene): Story {
++  const paragraphs = splitParagraphs(finalizeText(result.story.text, name));
++  if (!paragraphs.length) throw new ServiceError('empty_story', 'Engine returned no text');
++  const generated: GeneratedStory = {
++    title: finalizeText(result.story.title, name).trim(),
++    summary: finalizeText(result.metadata.summary ?? '', name),
++    story: paragraphs.join('\n\n'),
++    paragraphs,
++    coverPrompt: result.metadata.coverPrompt.split(HERO_TOKEN).join('the child'),
++    estimatedDuration: result.story.estimatedDurationSeconds,
++    age: result.story.age,
++    language: result.story.language,
++  };
++  generated.scene = scene ?? sceneFor(generated, req);
+   return {
+     ...generated,
+     id: result.story.id,
+     schemaVersion: 1,
+     createdAt: new Date().toISOString(),
+     childName: name || undefined,
+-    mood: scene.mood,
++    mood: generated.scene.mood,
+     interests: req.interests,
+     guidanceTheme: req.guidanceTheme,
+     usedCustomGuidance: Boolean(req.customGuidance?.trim()),
+-    cover,
++    cover: createIllustratedCover(generated.scene),
+     voiceId: req.voiceId,
+     favorite: false,
+     saved: false,
+-    source: status.story ? 'remote' : 'demo',
++    source: result.metadata.engine === 'v2-remote' ? 'remote' : 'demo',
+     externalTriggerId: null,
+     engine: {
+       version: 2,
+@@ -171,3 +185,13 @@
+     },
+   };
+ }
++
++/**
++ * DEMO MODE ONLY: a pre-written example the parent picked explicitly.
++ * Labelled as an example everywhere – never presented as generated from the request.
++ */
++export function createExampleStory(req: StoryRequest, exampleId: string): Story {
++  const name = capitalizeName(req.childName) ?? '';
++  const example = buildExample(exampleId, name || undefined);
++  return toStory(example, { ...req, guidanceTheme: undefined, customGuidance: undefined }, name, example.cover);
++}
+diff -ruN '--exclude=node_modules' a/src/styles/pages.css b/src/styles/pages.css
+--- a/src/styles/pages.css	2026-10-02 14:37:11.000000000 +0000
++++ b/src/styles/pages.css	2026-10-03 04:38:10.641213001 +0000
+@@ -1064,3 +1064,85 @@
+   max-width: 62ch;
+   color: var(--ink-soft);
+ }
++
++/* ── demo mode: honest notice + explicitly chosen examples ── */
++.creating--demo .creating__inner {
++  gap: 18px;
++  padding-top: 56px;
++}
++.demo-notice {
++  display: grid;
++  justify-items: center;
++  gap: 12px;
++  max-width: 620px;
++  text-align: center;
++}
++.demo-notice__title {
++  font-family: var(--font-story);
++  font-weight: 600;
++  font-size: var(--step-2);
++  line-height: 1.25;
++  text-wrap: balance;
++}
++.demo-notice__title:focus {
++  outline: none;
++}
++.demo-notice__idea {
++  font-family: var(--font-story);
++  font-style: italic;
++  color: var(--amber);
++}
++.demo-notice__body,
++.demo-notice__note {
++  color: var(--moon-soft);
++  max-width: 54ch;
++}
++.demo-notice__note {
++  font-size: var(--step--1);
++}
++.demo-notice__sub {
++  margin-top: 14px;
++  font-size: var(--step-0);
++  font-weight: 700;
++}
++.demo-notice__list {
++  display: grid;
++  gap: 8px;
++  width: 100%;
++  margin: 0;
++  padding: 0;
++  list-style: none;
++}
++.demo-example {
++  display: grid;
++  gap: 2px;
++  width: 100%;
++  padding: 12px 18px;
++  border-radius: var(--r-m);
++  background: rgba(255, 244, 228, 0.08);
++  box-shadow: inset 0 0 0 1px var(--line-light);
++  color: var(--moon);
++  text-align: left;
++  transition: background-color var(--t-fast) ease;
++}
++@media (hover: hover) {
++  .demo-example:hover {
++    background: rgba(255, 244, 228, 0.14);
++  }
++}
++.demo-example__title {
++  font-family: var(--font-story);
++  font-weight: 600;
++}
++.demo-example__meta {
++  font-size: var(--step--1);
++  color: var(--moon-soft);
++}
++.pill--example {
++  color: var(--amber);
++  box-shadow: inset 0 0 0 1px rgba(255, 181, 77, 0.5);
++}
++.pills--quiet .pill--example {
++  color: var(--amber-deep);
++  box-shadow: inset 0 0 0 1px rgba(229, 133, 42, 0.45);
++}
+diff -ruN '--exclude=node_modules' a/src/types/story.ts b/src/types/story.ts
+--- a/src/types/story.ts	2026-10-03 04:02:09.000000000 +0000
++++ b/src/types/story.ts	2026-10-03 04:38:34.677308245 +0000
+@@ -83,7 +83,7 @@
+ export type CreatureId = 'dino' | 'dragon' | 'otter';
+ 
+ /** Dedicated cover compositions for Story Engine V2 demo stories. */
+-export type CoverSubject = 'digger' | 'park' | 'cat' | 'crocodile';
++export type CoverSubject = 'digger' | 'park' | 'cat' | 'crocodile' | 'abstract';
+ 
+ export interface CoverScene {
+   setting: SettingId;
+@@ -128,7 +128,8 @@
+   /** Story Engine V2 metadata – optional so stories saved by V1 still load. */
+   engine?: {
+     version: 2;
+-    kind: 'v2-remote' | 'v2-demo-fixture' | 'v2-demo-template';
++    /** 'v2-demo-fixture' | 'v2-demo-template' only appear in stories saved before the correction */
++    kind: 'v2-remote' | 'v2-demo-example' | 'v2-demo-fixture' | 'v2-demo-template';
+     storyForm: string;
+     fingerprint?: import('../services/storyEngine/schemas').StoryFingerprint;
+     scenes?: import('../services/storyEngine/schemas').SceneSketch[];
+diff -ruN '--exclude=node_modules' a/tests/engine.regression.test.ts b/tests/engine.regression.test.ts
+--- a/tests/engine.regression.test.ts	1970-01-01 00:00:00.000000000 +0000
++++ b/tests/engine.regression.test.ts	2026-10-03 04:39:37.367089024 +0000
+@@ -0,0 +1,181 @@
++/**
++ * Story Engine V2 – regression tests (no network, no live model).
++ * Run:  npm run test:engine
++ *
++ * What these tests can prove without a model: the V1 template path is gone,
++ * no request is matched to a prepared story, every request takes the same V2
++ * pipeline, the critic rejects superficial personalisation, names are
++ * capitalised, and the number of model calls stays bounded.
++ * What they cannot prove: the creative quality of a live model's stories –
++ * that needs a configured provider (see README).
++ */
++import assert from 'node:assert/strict';
++import { existsSync, readdirSync, readFileSync } from 'node:fs';
++import { join } from 'node:path';
++import { runStoryEngine } from '../src/services/storyEngine/storyEngine';
++import { localCritique, requestElements } from '../src/services/storyEngine/critic';
++import { createStory, finalizeText, NoStoryProvider, toEngineRequest } from '../src/services/storyService';
++import { FIXTURES } from '../src/services/storyEngine/demo/fixtures';
++import type { LlmProvider } from '../src/services/storyEngine/provider';
++import type { StageName } from '../src/services/storyEngine/prompts';
++import type { StoryRequest } from '../src/types/story';
++import { OLD_V1_GEORGE, RED_CAR_STORY } from './mockStories';
++
++let passed = 0;
++async function test(name: string, fn: () => Promise<void> | void) {
++  try {
++    await fn();
++    passed++;
++    console.log(`  ✓ ${name}`);
++  } catch (err) {
++    console.error(`  ✗ ${name}\n    ${(err as Error).message}`);
++    process.exitCode = 1;
++  }
++}
++
++const george: StoryRequest = {
++  childAge: 6, childName: 'george', language: 'en', interests: [], interestLabels: [],
++  interestsText: 'red car', storyMood: 'surprise', voiceId: 'neutral',
++};
++
++/** Scripted provider: returns a plan built from the actual request, then queued writer outputs. */
++function mockProvider(writerQueue: string[], opts: { reviewPass?: boolean } = {}) {
++  const calls: Array<{ stage: StageName; user: string }> = [];
++  const provider: LlmProvider = {
++    name: 'mock',
++    async generateText() { return ''; },
++    async generateStructured(stage, user, validate) {
++      calls.push({ stage, user });
++      const req = JSON.parse(user).request ?? {};
++      const subject: string = req.childsRequest ?? 'the idea';
++      if (stage === 'plan') {
++        return validate({
++          interpretation: { explicitRequest: subject, coreElements: [subject], nonNegotiables: [subject], mostInterestingPotential: `what is odd about ${subject}`, naturalScale: 'small' },
++          candidates: [
++            { id: 'a', premise: `${subject} behaves strangely one Saturday and a bird is the reason`, centralDevice: 'hidden nest explains odd behaviour', scale: 'small' },
++            { id: 'b', premise: `a race nobody expected, involving ${subject}`, centralDevice: 'unlikely competition', scale: 'medium' },
++            { id: 'c', premise: `${subject} goes missing from the street at night`, centralDevice: 'clue trail mystery', scale: 'small' },
++          ],
++          diversityCheck: { genuinelyDifferent: true },
++          selection: { candidateId: 'a', reasoning: 'smallest true scale' },
++          architecture: { corePremise: `${subject} at the heart of a small mystery`, storyForm: 'small realistic mystery', protagonist: { identity: 'child' } },
++          characters: [{ name: 'Grandpa', personality: 'dry, practical' }],
++          guidance: { included: false },
++        });
++      }
++      if (stage === 'writer') {
++        const text = writerQueue.length > 1 ? writerQueue.shift()! : writerQueue[0];
++        return validate({ title: 'Story', text, summary: 's', coverScene: 'c' });
++      }
++      if (stage === 'review') {
++        return validate({
++          critique: opts.reviewPass === false ? { status: 'rewrite', problemLayer: 'writer', issues: ['flat'] } : { status: 'pass', problemLayer: null, issues: [] },
++          fingerprint: { genre: 'small mystery', scale: 'small', settingType: 'driveway', centralDevice: 'hidden nest', characterTypes: ['grandparent', 'sparrow'] },
++        });
++      }
++      throw new Error(`unexpected stage ${stage}`);
++    },
++  };
++  return { provider, calls };
++}
++
++console.log('\nStory Engine V2 – regression');
++
++await test('V1 template engine is removed from the codebase', () => {
++  const root = join(import.meta.dirname, '..', 'src');
++  assert.equal(existsSync(join(root, 'services/demo/demoStoryEngine.ts')), false);
++  assert.equal(existsSync(join(root, 'services/demo/packs')), false);
++  const walk = (d: string): string[] => readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(join(d, e.name)) : [join(d, e.name)]));
++  for (const f of walk(root).filter((f) => /\.(ts|tsx)$/.test(f))) {
++    const src = readFileSync(f, 'utf8');
++    assert.ok(!/demoStoryEngine|matchFixture|generateDemoStory/.test(src), `legacy reference in ${f}`);
++  }
++});
++
++await test('George / 6 / "red car" / EN without provider → honest NoStoryProvider, never a template', async () => {
++  await assert.rejects(() => createStory(george), (e: unknown) => e instanceof NoStoryProvider);
++});
++
++await test('George request reaches V2 unchanged and the name is capitalised', () => {
++  const r = toEngineRequest(george);
++  assert.equal(r.child?.firstName, 'George');
++  assert.equal(r.request, 'red car');
++  assert.deepEqual(requestElements(r.request), ['red car']);
++});
++
++await test('George / red car: V1-style story is rejected, re-planned, and the red car drives the final story', async () => {
++  const { provider, calls } = mockProvider([OLD_V1_GEORGE.replace(/george/g, '{{HERO}}'), RED_CAR_STORY]);
++  const req = { ...toEngineRequest(george), child: { firstName: '{{HERO}}', age: 6 } };
++  const result = await runStoryEngine(req, provider, { debug: true });
++  const first = result.debug!.critiques[0];
++  assert.equal(first.status, 'rewrite');
++  assert.equal(first.problemLayer, 'concept');
++  assert.ok(first.issues.some((i) => /V1 template/.test(i)), 'legacy template detected');
++  assert.ok(first.issues.some((i) => /injected/.test(i)), 'interest injection detected');
++  assert.deepEqual(calls.map((c) => c.stage), ['plan', 'writer', 'plan', 'writer', 'review'], 'concept failure returns to PLAN, bounded');
++
++  const text = finalizeText(result.story.text, 'George');
++  const paras = text.split(/\n\s*\n/);
++  const withCar = paras.filter((p) => /red car/i.test(p)).length;
++  assert.ok(withCar >= 3, `red car in ${withCar} paragraphs`);
++  assert.ok(/red car/i.test(paras[0]), 'red car is part of the premise from the first paragraph');
++  assert.ok(!/mosslight|lulu/i.test(text), 'no Mosslight / Lulu');
++  assert.ok(!/apple tree|magic(al)? door|tiny door/i.test(text), 'no apple tree / magic door');
++  assert.ok(!/thought about (all )?the things|heart beat faster/i.test(text), 'no interest-injection sentence');
++  assert.ok(text.includes('George') && !/\bgeorge\b/.test(text), 'George capitalised');
++});
++
++await test('SWAP TEST: the same red-car story fails for the request "dinosaur"', () => {
++  const swapped = localCritique({ title: 't', text: finalizeText(RED_CAR_STORY, 'George') }, { req: { language: 'en', request: 'dinosaur', child: { age: 6 } } });
++  assert.equal(swapped.status, 'rewrite');
++  assert.ok(swapped.issues.some((i) => /swap test failed/.test(i)));
++  const original = localCritique({ title: 't', text: finalizeText(RED_CAR_STORY, 'George') }, { req: { language: 'en', request: 'red car', child: { age: 6 } } });
++  assert.equal(original.status, 'pass', original.issues.join('; '));
++});
++
++await test('The old V1 George output fails the local critic on every count', () => {
++  const c = localCritique({ title: 'George, Lulu and the Mosslight Tree Village', text: OLD_V1_GEORGE }, { req: { language: 'en', request: 'red car', child: { age: 6, firstName: 'George' } } });
++  assert.equal(c.status, 'rewrite');
++  for (const re of [/V1 template/, /injected/, /swap test/, /capitalised/]) assert.ok(c.issues.some((i) => re.test(i)), `missing ${re}`);
++});
++
++await test('Name finalisation fixes lowercase names everywhere', () => {
++  assert.equal(finalizeText('{{HERO}} waved. "george!" called Grandpa.', 'George'), 'George waved. "George!" called Grandpa.');
++});
++
++await test('A passing story costs exactly 3 model calls (PLAN, WRITE, REVIEW)', async () => {
++  const { provider, calls } = mockProvider([RED_CAR_STORY]);
++  await runStoryEngine({ ...toEngineRequest(george), child: { firstName: '{{HERO}}', age: 6 } }, provider);
++  assert.equal(calls.length, 3);
++});
++
++await test('Rewrites are bounded even if the critic never passes', async () => {
++  const { provider, calls } = mockProvider([RED_CAR_STORY], { reviewPass: false });
++  const r = await runStoryEngine({ ...toEngineRequest(george), child: { firstName: '{{HERO}}', age: 6 } }, provider);
++  assert.ok(calls.length <= 5, `${calls.length} calls`);
++  assert.ok(r.metadata.qualityWarnings?.length, 'remaining issues reported, not hidden');
++});
++
++const arbitrary: Array<[number, string]> = [[5, 'fire truck'], [8, 'my dog Max and a submarine'], [7, 'a refrigerator that sings opera'], [9, 'I become invisible every Wednesday']];
++await test('Arbitrary inputs all take the same V2 path; request reaches PLAN verbatim; no prepared story is returned', async () => {
++  const fixtureTitles = new Set(FIXTURES.map((f) => f.title));
++  for (const [age, text] of arbitrary) {
++    const body = Array.from({ length: 8 }, (_, i) => `Paragraph ${i + 1} is about ${text}, and {{HERO}} wonders what ${text} will do next.`).join('\n\n');
++    const { provider, calls } = mockProvider([body]);
++    const req = toEngineRequest({ ...george, childAge: age, interestsText: text });
++    const r = await runStoryEngine({ ...req, child: { firstName: '{{HERO}}', age } }, provider);
++    assert.equal(JSON.parse(calls[0].user).request.childsRequest, text);
++    assert.deepEqual(calls.map((c) => c.stage).slice(0, 2), ['plan', 'writer']);
++    assert.ok(!fixtureTitles.has(r.story.title));
++    assert.equal(r.metadata.engine, 'v2-remote');
++  }
++});
++
++await test('Benchmark examples still meet the local quality bar (they are tests, not the product)', () => {
++  for (const f of FIXTURES) {
++    const c = localCritique({ title: f.title, text: f.text.split('{{HERO}}').join(f.defaultHero) }, { req: { language: f.language, request: f.interpretation.explicitRequest, child: { age: f.age } }, interpretation: f.interpretation });
++    assert.equal(c.status, 'pass', `${f.id}: ${c.issues.join('; ')}`);
++  }
++});
++
++console.log(`\n${passed} passed${process.exitCode ? ', some FAILED' : ''}\n`);
+diff -ruN '--exclude=node_modules' a/tests/mockStories.ts b/tests/mockStories.ts
+--- a/tests/mockStories.ts	1970-01-01 00:00:00.000000000 +0000
++++ b/tests/mockStories.ts	2026-10-03 04:39:37.366067487 +0000
+@@ -0,0 +1,41 @@
++// Test data only. A hand-written stand-in for what a live model returns for
++// "George / 6 / red car / English" – used to verify the pipeline and the
++// critic. It is NOT used by the app.
++export const RED_CAR_STORY = `Every Saturday, {{HERO}} helped Grandpa wash the red car. It was an old car, round like a beetle, and Grandpa called it Tomato. Tomato had one strange habit: its horn did not go BEEP. It went "Ba-doo-ba".
++
++"Why does the red car sing?" {{HERO}} asked once.
++"It doesn't sing," said Grandpa. "It hums. Very different."
++
++This Saturday, the red car would not hum at all. {{HERO}} pressed the horn. Nothing. He pressed it again. Only a tiny scratching sound came from somewhere behind the shiny front grille of the red car.
++
++"Maybe Tomato has a cold," said {{HERO}}.
++Grandpa frowned. "Cars don't get colds."
++"Then why is the red car scratching?"
++
++They knelt down on the wet driveway. {{HERO}} pressed his ear against the warm red metal. Scratch. Scratch. Then, very small: "Cheep."
++Behind the grille, tucked between two pipes, sat a nest. In the nest sat a sparrow, puffed up and furious, staring at {{HERO}} as if the red car were her house and he was the visitor without an invitation.
++
++"Well," said Grandpa slowly. "That explains the hum."
++"We have to get her out," said {{HERO}}.
++"We can't. There are eggs." Grandpa scratched his chin. "And I need the car on Monday."
++
++{{HERO}} looked at the red car. He looked at the sparrow. Then he had an idea. He ran to the garage and came back with the old shoebox, the soft cloth from the car washing bucket, and a roll of tape.
++
++They built a new nest box and fixed it to the fence right next to the red car, where the sparrow could still see her old home. Grandpa lifted the nest out, slowly, slowly, and set it inside the box. The sparrow fluttered, complained, landed on the side mirror of the red car, and glared. Then she hopped into the box.
++
++On Monday, Grandpa started the red car. He pressed the horn.
++"Ba-doo-ba!"
++And from the fence came an answer: "Cheep!"
++
++Since then, whenever the red car leaves the driveway, it hums twice. Grandpa says that is just the horn. {{HERO}} knows it is saying goodbye.`;
++
++/** Reconstruction of the faulty V1 output George received – must be rejected. */
++export const OLD_V1_GEORGE = `One evening, george noticed something strange in the garden: in the old apple tree there was a tiny door with a round handle made of moss. That door had never been there before. And from underneath it, a warm light was glowing.
++
++george opened the door very carefully – and behind it was a forest where the leaves tinkled softly. On the way, george thought about all the things that make a heart beat faster: red car. And it felt as if this journey were heading right there. A path of glowing mushrooms led to the tree village of Mosslight.
++
++Under a big fern something was trembling. There sat a little otter pup with shiny fur. On its collar was written: Lulu.
++
++“What’s the matter?” george asked gently. Lulu had lost something. A little light. They searched high and low and found it at last.
++
++When the mushrooms along the path began to glow more softly, george walked back to the little door in the apple tree.`;

@@ -1,6 +1,5 @@
 import type { CoverImage, CoverScene, GeneratedStory, StoryRequest } from '../types/story';
 import { createIllustratedCover } from './demo/coverArt';
-import { pickWorld, resolveMood } from './demo/demoStoryEngine';
 import { logTechnical, postJson } from './apiClient';
 import { hashString } from '../utils/id';
 
@@ -13,11 +12,19 @@ import { hashString } from '../utils/id';
 export const COVER_STYLE =
   "Premium children's picture-book cover illustration. Warm, imaginative, calm. Modern European illustration with soft gouache textures and paper-cut depth, gentle glowing light, rich but harmonious colours. Not overly cartoonish. No text, letters or logos. No copyrighted or recognisable characters. Not in the style of any specific studio or living artist. Do not depict a real child.";
 
+/**
+ * Without an image provider a live story gets a NEUTRAL illustrated cover
+ * (it must not show an unrelated world). Example stories bring their own scene.
+ */
 export function sceneFor(story: GeneratedStory, req: StoryRequest): CoverScene {
   if (story.scene) return story.scene;
-  const seed = hashString(story.title);
-  const { setting, creature } = pickWorld(req);
-  return { setting, creature, mood: resolveMood(req.storyMood, seed), seed };
+  return {
+    setting: 'forest',
+    creature: 'otter',
+    mood: req.storyMood === 'surprise' ? 'magical' : req.storyMood,
+    seed: hashString(story.title),
+    subject: 'abstract',
+  };
 }
 
 export function buildCoverPrompt(story: GeneratedStory, req: StoryRequest): string {

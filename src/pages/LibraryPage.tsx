@@ -90,6 +90,7 @@ function BookCard({ story }: { story: Story }) {
       <div className="book-card__info">
         {story.childName && <p className="book-card__for">{t('player.forName', { name: story.childName })}</p>}
         <ul className="pills pills--quiet">
+          {story.engine?.kind === 'v2-demo-example' && <li className="pill pill--example">{t('demo.badge')}</li>}
           <li className="pill"><Icon name="clock" size={14} />{t('common.minutes', { n: Math.max(1, Math.round(story.estimatedDuration / 60)) })}</li>
           <li className="pill">{LANGUAGES[story.language].nativeName}</li>
         </ul>

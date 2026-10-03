@@ -185,6 +185,7 @@ function Player({ story }: { story: Story }) {
           <h1 className="player__title" id="story-title">{story.title}</h1>
           {story.childName && <p className="player__for">{t('player.forName', { name: story.childName })}</p>}
           <ul className="pills" aria-label={story.summary}>
+            {story.engine?.kind === 'v2-demo-example' && <li className="pill pill--example">{t('demo.badge')}</li>}
             <li className="pill">{t('common.years', { n: story.age })}</li>
             <li className="pill"><Icon name="clock" size={15} />{t('common.minutes', { n: minutes })}</li>
             <li className="pill">{LANGUAGES[story.language].nativeName}</li>

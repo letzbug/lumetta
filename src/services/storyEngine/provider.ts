@@ -7,7 +7,7 @@
 // ─────────────────────────────────────────────────────────────
 import { APP_CONFIG } from '../../config/app';
 import { fetchWithTimeout, logTechnical } from '../apiClient';
-import { PROMPTS, STAGE_SETTINGS, type StageName } from './prompts';
+import { STAGE_SETTINGS, systemPrompt, type StageName } from './prompts';
 import { SchemaError } from './schemas';
 
 export class EngineError extends Error {
@@ -50,7 +50,7 @@ export class RemoteProvider implements LlmProvider {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           stage,
-          system: PROMPTS[stage].system + extraSystem,
+          system: systemPrompt(stage) + extraSystem,
           user,
           json,
           temperature: settings.temperature,

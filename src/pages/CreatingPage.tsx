@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { translate, useI18n } from '../i18n/i18n';
 import { useStore, type Draft } from '../store/AppStore';
 import { navigate } from '../store/router';
-import { createStory, SafetyStop } from '../services/storyService';
+import { createExampleStory, createStory, NoStoryProvider, SafetyStop } from '../services/storyService';
+import { DemoNotice } from './create/DemoNotice';
 import { logTechnical } from '../services/apiClient';
 import { LightCompanion, type CompanionState } from '../components/LightCompanion';
 import { DuskScene } from '../components/DuskScene';
@@ -31,7 +32,7 @@ export function CreatingPage() {
   const { t } = useI18n();
   const { draft, setCurrent } = useStore();
   const [stage, setStage] = useState<GenerationStage>('finding');
-  const [status, setStatus] = useState<'running' | 'ready' | 'error'>('running');
+  const [status, setStatus] = useState<'running' | 'ready' | 'error' | 'demo'>('running');
   const [attempt, setAttempt] = useState(0);
   const [storyId, setStoryId] = useState<string | null>(null);
 
@@ -58,6 +59,7 @@ export function CreatingPage() {
       .catch((err) => {
         if (!active) return;
         if (err instanceof SafetyStop) return navigate('/create', { replace: true });
+        if (err instanceof NoStoryProvider) return setStatus('demo');
         logTechnical('generation', err);
         setStatus('error');
       });
@@ -69,7 +71,26 @@ export function CreatingPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [attempt]);
 
-  const companion: CompanionState = status === 'error' ? 'paused' : status === 'ready' ? 'ready' : 'thinking';
+  const companion: CompanionState = status === 'error' || status === 'demo' ? 'paused' : status === 'ready' ? 'ready' : 'thinking';
+
+  const pickExample = (id: string) => {
+    const story = createExampleStory(request, id);
+    setCurrent(story);
+    navigate(`/story/${story.id}`, { replace: true });
+  };
+  const idea = [draft.interestsText.trim(), ...request.interestLabels].filter(Boolean).join(' + ');
+
+  if (status === 'demo') {
+    return (
+      <section className="creating creating--demo">
+        <DuskScene variant="low" />
+        <div className="creating__inner">
+          <LightCompanion state="paused" size={110} />
+          <DemoNotice idea={idea} onPick={pickExample} onEdit={() => navigate('/create')} />
+        </div>
+      </section>
+    );
+  }
   const forWhom = draft.name.trim() ? t('generating.forName', { name: draft.name.trim() }) : t('generating.forChild', { age: draft.age ?? '' });
   const stageIndex = STAGES.indexOf(stage);
 

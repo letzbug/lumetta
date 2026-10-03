@@ -5,9 +5,8 @@ import { createIllustratedCover } from './demo/coverArt';
 import { getBackendStatus, logTechnical, ServiceError } from './apiClient';
 import { screenText } from './safetyService';
 import { splitParagraphs } from '../utils/text';
-import { hashString } from '../utils/id';
 import { runStoryEngine, type EngineStage } from './storyEngine/storyEngine';
-import { matchFixture, runDemoEngine } from './storyEngine/demo/demoEngine';
+import { buildExample } from './storyEngine/demo/demoEngine';
 import { RemoteProvider } from './storyEngine/provider';
 import { loadRecentFingerprints, rememberFingerprint } from './storyEngine/fingerprint';
 import { HERO_TOKEN } from './storyEngine/prompts';
@@ -16,9 +15,12 @@ import type { EngineRequest, EngineResult } from './storyEngine/schemas';
 /**
  * Story service – the single entry point the UI uses (unchanged API).
  *
- *  Story Engine V2
- *   REMOTE → services/storyEngine/storyEngine.ts, models via POST /api/llm
- *   DEMO   → services/storyEngine/demo/demoEngine.ts (benchmark fixtures, V1 template fallback)
+ *  Story Engine V2 – ONE path for every request:
+ *   services/storyEngine/storyEngine.ts → provider (POST /api/llm) → any configured model
+ *
+ *  Without a story provider there is NO generation: createStory() throws
+ *  NoStoryProvider and the UI says so honestly. Pre-written example stories
+ *  are only available through createExampleStory(), chosen explicitly.
  *
  * Privacy: the child's first name never leaves the device. It is replaced by
  * {{HERO}} in everything sent to the server and restored here afterwards.
@@ -30,6 +32,27 @@ export class SafetyStop extends Error {
     super('guidance requires professional support');
     this.name = 'SafetyStop';
   }
+}
+
+/** Thrown when no story provider is configured (e.g. GitHub Pages without an API). */
+export class NoStoryProvider extends Error {
+  constructor() {
+    super('no story provider configured');
+    this.name = 'NoStoryProvider';
+  }
+}
+
+export async function isStoryServiceAvailable(): Promise<boolean> {
+  return (await getBackendStatus()).story;
+}
+
+const nameRegex = (name: string) => new RegExp(`(^|[^\\p{L}])(${escape(name)})(?![\\p{L}])`, 'giu');
+
+/** Restore the hero token and enforce the correct spelling of the name everywhere. */
+export function finalizeText(text: string, name: string): string {
+  let out = text.split(HERO_TOKEN).join(name);
+  if (name) out = out.replace(nameRegex(name), (_m: string, pre: string) => pre + name);
+  return out.replace(/[ \t]{2,}/g, ' ');
 }
 
 export interface CreateStoryOptions {
@@ -95,72 +118,63 @@ export async function createStory(req: StoryRequest, opts: CreateStoryOptions = 
   };
 
   const status = await getBackendStatus();
+  if (!status.story) throw new NoStoryProvider();
   const engineReq = toEngineRequest(req);
   const started = Date.now();
   emit('finding');
 
   let result: EngineResult;
-  let coverScene: CoverScene | undefined;
   try {
-    if (status.story) {
-      result = await runStoryEngine(forRemote(engineReq), new RemoteProvider(), { onStage, debug: Boolean(import.meta.env?.DEV) });
-    } else {
-      const demo = await runDemoEngine(engineReq, req, { onStage, paceMs: APP_CONFIG.demoStageMs });
-      result = demo;
-      coverScene = demo.cover;
-    }
+    result = await runStoryEngine(forRemote(engineReq), new RemoteProvider(), { onStage, debug: Boolean(import.meta.env?.DEV) });
   } catch (err) {
     logTechnical('story-engine', err);
     throw err instanceof ServiceError ? err : new ServiceError('story_failed', 'Story Engine failed', err);
   }
-  if (import.meta.env?.DEV && result.debug) console.info('[lumetta:story-engine]', result.metadata.engine, result.debug);
+  if (import.meta.env?.DEV && result.debug) console.info('[lumetta:story-engine]', result.debug);
 
-  // restore the name on the device
   const name = engineReq.child?.firstName ?? '';
-  const restore = (t: string) => t.split(HERO_TOKEN).join(name).replace(/[ \t]{2,}/g, ' ');
-  const paragraphs = splitParagraphs(restore(result.story.text));
-  if (!paragraphs.length) throw new ServiceError('empty_story', 'Engine returned no text');
-
-  const generated: GeneratedStory = {
-    title: restore(result.story.title).trim(),
-    summary: restore(result.metadata.summary ?? ''),
-    story: paragraphs.join('\n\n'),
-    paragraphs,
-    coverPrompt: result.metadata.coverPrompt.split(HERO_TOKEN).join('the child'),
-    estimatedDuration: result.story.estimatedDurationSeconds,
-    age: req.childAge,
-    language: result.story.language,
-  };
-
+  const story = toStory(result, req, name);
   emit('magic');
-  // cover: demo scenes come with the result; remote stories get a matching composition where possible
-  const fixtureCover = matchFixture(engineReq)?.cover;
-  const scene: CoverScene = coverScene ?? (fixtureCover ? { ...fixtureCover, seed: hashString(generated.title) } : sceneFor(generated, req));
-  generated.scene = scene;
-  const cover = status.story ? await createCover(generated, req, status.image) : createIllustratedCover(scene);
-
+  story.cover = await createCover(story, req, status.image);
   const minimum = APP_CONFIG.demoStageMs * 3;
   const elapsed = Date.now() - started;
   if (elapsed < minimum) await wait(minimum - elapsed);
   emit('ready');
 
   rememberFingerprint(result.metadata.fingerprint);
+  return story;
+}
 
+/** Shared mapping from an engine result to a library story. */
+function toStory(result: EngineResult, req: StoryRequest, name: string, scene?: CoverScene): Story {
+  const paragraphs = splitParagraphs(finalizeText(result.story.text, name));
+  if (!paragraphs.length) throw new ServiceError('empty_story', 'Engine returned no text');
+  const generated: GeneratedStory = {
+    title: finalizeText(result.story.title, name).trim(),
+    summary: finalizeText(result.metadata.summary ?? '', name),
+    story: paragraphs.join('\n\n'),
+    paragraphs,
+    coverPrompt: result.metadata.coverPrompt.split(HERO_TOKEN).join('the child'),
+    estimatedDuration: result.story.estimatedDurationSeconds,
+    age: result.story.age,
+    language: result.story.language,
+  };
+  generated.scene = scene ?? sceneFor(generated, req);
   return {
     ...generated,
     id: result.story.id,
     schemaVersion: 1,
     createdAt: new Date().toISOString(),
     childName: name || undefined,
-    mood: scene.mood,
+    mood: generated.scene.mood,
     interests: req.interests,
     guidanceTheme: req.guidanceTheme,
     usedCustomGuidance: Boolean(req.customGuidance?.trim()),
-    cover,
+    cover: createIllustratedCover(generated.scene),
     voiceId: req.voiceId,
     favorite: false,
     saved: false,
-    source: status.story ? 'remote' : 'demo',
+    source: result.metadata.engine === 'v2-remote' ? 'remote' : 'demo',
     externalTriggerId: null,
     engine: {
       version: 2,
@@ -170,4 +184,14 @@ export async function createStory(req: StoryRequest, opts: CreateStoryOptions = 
       scenes: result.metadata.scenes,
     },
   };
+}
+
+/**
+ * DEMO MODE ONLY: a pre-written example the parent picked explicitly.
+ * Labelled as an example everywhere – never presented as generated from the request.
+ */
+export function createExampleStory(req: StoryRequest, exampleId: string): Story {
+  const name = capitalizeName(req.childName) ?? '';
+  const example = buildExample(exampleId, name || undefined);
+  return toStory(example, { ...req, guidanceTheme: undefined, customGuidance: undefined }, name, example.cover);
 }

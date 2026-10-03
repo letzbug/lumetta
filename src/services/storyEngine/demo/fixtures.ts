@@ -1,9 +1,9 @@
 // ─────────────────────────────────────────────────────────────
-// DEMO / DEVELOPMENT FIXTURES – quality benchmarks, not templates.
-// Five very different story forms for the five benchmark requests.
-// Each is hand-written natively in German for listening, and keeps
-// the pipeline's intermediate artefacts so the engine stays
-// inspectable without a live model.
+// DEMO EXAMPLES / QUALITY BENCHMARKS – not templates, not special cases.
+// Five pre-written stories in very different forms. They are never matched
+// against a child's request at runtime: in demo mode the parent picks one
+// explicitly as a labelled example; in tests they serve as quality
+// benchmarks for the local critic. `match` is used by tests only.
 // ─────────────────────────────────────────────────────────────
 import type { CoverScene, LanguageCode } from '../../../types/story';
 import type { GuidanceFamily } from '../../../config/catalog';

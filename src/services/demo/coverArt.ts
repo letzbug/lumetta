@@ -189,9 +189,20 @@ const SUBJECT_PALETTES: Record<CoverSubject, CoverImage['palette']> = {
   park: { deep: '#22305C', mid: '#7E5C8A', glow: '#FFC56E' },
   cat: { deep: '#18223F', mid: '#3A4C7F', glow: '#FFD98A' },
   crocodile: { deep: '#2E5B5A', mid: '#8CC7B5', glow: '#FFC56E' },
+  abstract: { deep: '#1D2B52', mid: '#4C5E94', glow: '#FFC56E' },
 };
 
 function subjectWorld(subject: CoverSubject, rnd: () => number): string {
+  if (subject === 'abstract') {
+    // neutral cover for live stories without an image provider: it claims nothing about the plot
+    const stars = Array.from({ length: 50 }, () => `<circle cx="${(rnd() * 600).toFixed(0)}" cy="${(rnd() * 520).toFixed(0)}" r="${(0.7 + rnd() * 1.6).toFixed(1)}" fill="#FFF3DC" opacity="${(0.4 + rnd() * 0.6).toFixed(2)}"/>`).join('');
+    const shapes = Array.from({ length: 5 }, (_, i) => {
+      const y = 430 + i * 70 + rnd() * 30;
+      const shades = ['#2E3F70', '#27365F', '#212E52', '#1B2646', '#151E3A'];
+      return `<path d="M0 ${y} C 150 ${y - 60 - rnd() * 60}, 330 ${y + 40 - rnd() * 60}, 600 ${y - 30 - rnd() * 50} V800 H0 Z" fill="${shades[i]}"/>`;
+    }).join('');
+    return `<rect width="600" height="800" fill="url(#bg)"/>${stars}${shapes}`;
+  }
   if (subject === 'digger') {
     return `
     <rect width="600" height="800" fill="url(#bg)"/>
@@ -310,9 +321,10 @@ function subjectCover(subject: CoverSubject, rnd: () => number): CoverImage {
     park: ['#1E2A55', '#E9A27A'],
     cat: ['#1A2547', '#3E5288'],
     crocodile: ['#BFE6EE', '#F3E2C9'],
+    abstract: ['#16224A', '#5E5A8E'],
   };
   const [top, bottom] = sky[subject];
-  const lightAt: Record<CoverSubject, [number, number]> = { digger: [520, 420], park: [120, 200], cat: [200, 210], crocodile: [120, 200] };
+  const lightAt: Record<CoverSubject, [number, number]> = { digger: [520, 420], park: [120, 200], cat: [200, 210], crocodile: [120, 200], abstract: [300, 330] };
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 800" preserveAspectRatio="xMidYMid slice">
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${top}"/><stop offset="1" stop-color="${bottom}"/></linearGradient>

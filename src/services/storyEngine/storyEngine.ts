@@ -21,6 +21,10 @@ import { localCritique, mergeCritiques, modelCritique } from './critic';
 import { createFingerprint } from './fingerprint';
 import { HERO_TOKEN } from './prompts';
 import type { LlmProvider } from './provider';
+import { ENGINE_CONFIG } from './engineConfig';
+import { plan } from './plan';
+import { review } from './review';
+import { localFingerprint } from './fingerprint';
 import type { Architecture, Candidate, CharacterSheet, Critique, EngineRequest, EngineResult, GuidancePlan, Interpretation, WrittenStory } from './schemas';
 
 export type EngineStage =
@@ -43,9 +47,92 @@ export interface EngineHooks {
   debug?: boolean;
 }
 
-export async function runStoryEngine(req: EngineRequest, provider: LlmProvider, hooks: EngineHooks = {}): Promise<EngineResult> {
+/** Single entry point – every request takes the same V2 path. */
+export function runStoryEngine(req: EngineRequest, provider: LlmProvider, hooks: EngineHooks = {}): Promise<EngineResult> {
+  return ENGINE_CONFIG.mode === 'granular' ? runGranular(req, provider, hooks) : runEfficient(req, provider, hooks);
+}
+
+/**
+ * EFFICIENT MODE (default): PLAN → WRITE → REVIEW, ≈ 3 calls.
+ * Local critic always runs first (free). A failed critique returns to the
+ * earliest responsible stage: concept/architect → re-PLAN, otherwise re-WRITE.
+ * Bounded by ENGINE_CONFIG.maxRewrites – no endless cost loops.
+ */
+async function runEfficient(req: EngineRequest, provider: LlmProvider, hooks: EngineHooks): Promise<EngineResult> {
   const stage = hooks.onStage ?? (() => {});
-  const maxRevisions = hooks.maxRevisions ?? 2;
+  const maxRewrites = hooks.maxRevisions ?? ENGINE_CONFIG.maxRewrites;
+  const critiques: Critique[] = [];
+  const heroToken = req.child?.firstName ? HERO_TOKEN : undefined;
+
+  stage('interpreting');
+  let p = await plan(req, provider);
+  stage('characters');
+  let chosen = p.candidates.find((c) => c.id === p.selection.candidateId) ?? p.candidates[0];
+
+  stage('writing');
+  let story = await write(req, { interpretation: p.interpretation, architecture: p.architecture, characters: p.characters, guidance: p.guidance }, provider);
+  let fingerprint: EngineResult['metadata']['fingerprint'] | null = null;
+  let revisions = 0;
+
+  for (let round = 0; ; round++) {
+    stage('critiquing');
+    let critique = localCritique(story, { req, interpretation: p.interpretation, heroToken });
+    // model critic only when the free checks pass – saves a call on obvious failures
+    if (critique.status === 'pass' && ENGINE_CONFIG.modelCritic) {
+      try {
+        const r = await review(req, p.interpretation, story, provider);
+        critique = r.critique;
+        fingerprint = r.fingerprint;
+      } catch {
+        /* the local critic already passed – a failing review must not cost the story */
+      }
+    }
+    critiques.push(critique);
+    if (critique.status === 'pass' || round >= maxRewrites) break;
+
+    revisions++;
+    stage('rewriting');
+    const feedback = [...critique.issues.map((i) => `Issue: ${i}`), ...critique.rewriteInstructions];
+    const layer = critique.problemLayer ?? 'writer';
+    if (layer === 'concept' || layer === 'architect') {
+      p = await plan(req, provider, { feedback, avoidPremises: layer === 'concept' ? [chosen.premise] : undefined });
+      chosen = p.candidates.find((c) => c.id === p.selection.candidateId) ?? p.candidates[0];
+    }
+    stage('writing');
+    story = await write(req, { interpretation: p.interpretation, architecture: p.architecture, characters: p.characters, guidance: p.guidance }, provider, feedback);
+  }
+
+  const last = critiques[critiques.length - 1];
+  stage('done');
+  return {
+    story: {
+      id: createId(),
+      title: story.title,
+      language: req.language,
+      age: req.child?.age ?? 6,
+      text: story.text,
+      estimatedDurationSeconds: estimateDurationSeconds(story.text, req.child?.age ?? 6),
+    },
+    metadata: {
+      storyForm: p.architecture.storyForm,
+      mood: chosen.storyEnergy,
+      summary: story.summary,
+      coverPrompt: story.coverScene || chosen.premise,
+      fingerprint: fingerprint ?? localFingerprint(chosen, p.architecture),
+      scenes: story.scenes,
+      engine: 'v2-remote',
+      qualityWarnings: last.status === 'rewrite' ? last.issues : undefined,
+    },
+    debug: hooks.debug
+      ? { interpretation: p.interpretation, candidates: p.candidates, selection: p.selection, architecture: p.architecture, characters: p.characters, guidance: p.guidance, critiques, revisions }
+      : { critiques, revisions },
+  };
+}
+
+/** GRANULAR MODE: one call per stage (debugging / small models). */
+async function runGranular(req: EngineRequest, provider: LlmProvider, hooks: EngineHooks = {}): Promise<EngineResult> {
+  const stage = hooks.onStage ?? (() => {});
+  const maxRevisions = hooks.maxRevisions ?? ENGINE_CONFIG.maxRewrites;
   const critiques: Critique[] = [];
 
   stage('interpreting');

@@ -1064,3 +1064,85 @@
   max-width: 62ch;
   color: var(--ink-soft);
 }
+
+/* ── demo mode: honest notice + explicitly chosen examples ── */
+.creating--demo .creating__inner {
+  gap: 18px;
+  padding-top: 56px;
+}
+.demo-notice {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  max-width: 620px;
+  text-align: center;
+}
+.demo-notice__title {
+  font-family: var(--font-story);
+  font-weight: 600;
+  font-size: var(--step-2);
+  line-height: 1.25;
+  text-wrap: balance;
+}
+.demo-notice__title:focus {
+  outline: none;
+}
+.demo-notice__idea {
+  font-family: var(--font-story);
+  font-style: italic;
+  color: var(--amber);
+}
+.demo-notice__body,
+.demo-notice__note {
+  color: var(--moon-soft);
+  max-width: 54ch;
+}
+.demo-notice__note {
+  font-size: var(--step--1);
+}
+.demo-notice__sub {
+  margin-top: 14px;
+  font-size: var(--step-0);
+  font-weight: 700;
+}
+.demo-notice__list {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.demo-example {
+  display: grid;
+  gap: 2px;
+  width: 100%;
+  padding: 12px 18px;
+  border-radius: var(--r-m);
+  background: rgba(255, 244, 228, 0.08);
+  box-shadow: inset 0 0 0 1px var(--line-light);
+  color: var(--moon);
+  text-align: left;
+  transition: background-color var(--t-fast) ease;
+}
+@media (hover: hover) {
+  .demo-example:hover {
+    background: rgba(255, 244, 228, 0.14);
+  }
+}
+.demo-example__title {
+  font-family: var(--font-story);
+  font-weight: 600;
+}
+.demo-example__meta {
+  font-size: var(--step--1);
+  color: var(--moon-soft);
+}
+.pill--example {
+  color: var(--amber);
+  box-shadow: inset 0 0 0 1px rgba(255, 181, 77, 0.5);
+}
+.pills--quiet .pill--example {
+  color: var(--amber-deep);
+  box-shadow: inset 0 0 0 1px rgba(229, 133, 42, 0.45);
+}

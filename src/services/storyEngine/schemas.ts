@@ -145,7 +145,9 @@ export interface EngineResult {
     coverPrompt: string;
     fingerprint: StoryFingerprint;
     scenes?: SceneSketch[];
-    engine: 'v2-remote' | 'v2-demo-fixture' | 'v2-demo-template';
+    engine: 'v2-remote' | 'v2-demo-example';
+    /** remaining critic issues if the rewrite budget was exhausted (development info) */
+    qualityWarnings?: string[];
   };
   /** development only – never shown in the child-facing UI */
   debug?: {
@@ -325,4 +327,34 @@ export function validateFingerprint(raw: unknown): StoryFingerprint | null {
     endingStyle: str(raw.endingStyle),
     majorMotifs: strArr(raw.majorMotifs).slice(0, 8),
   };
+}
+
+// ── efficient mode: combined plan + review ──────────────────
+export interface StoryPlan {
+  interpretation: Interpretation;
+  candidates: Candidate[];
+  diversityCheck: { genuinelyDifferent: boolean; note: string };
+  selection: Selection;
+  architecture: Architecture;
+  characters: CharacterSheet[];
+  guidance: GuidancePlan;
+}
+
+export function validatePlan(raw: unknown): StoryPlan {
+  if (!isObj(raw)) throw new SchemaError('plan', 'not an object');
+  const imagination = validateImagination({ candidates: raw.candidates, diversityCheck: raw.diversityCheck });
+  return {
+    interpretation: validateInterpretation(raw.interpretation),
+    candidates: imagination.candidates,
+    diversityCheck: imagination.diversityCheck,
+    selection: validateSelection(raw.selection ?? {}, imagination.candidates),
+    architecture: validateArchitecture(raw.architecture),
+    characters: raw.characters === undefined ? [] : validateCharacters({ characters: raw.characters }),
+    guidance: isObj(raw.guidance) ? validateGuidancePlan(raw.guidance) : { included: false },
+  };
+}
+
+export function validateReview(raw: unknown): { critique: Critique; fingerprint: StoryFingerprint | null } {
+  if (!isObj(raw)) throw new SchemaError('review', 'not an object');
+  return { critique: validateCritique(raw.critique ?? {}), fingerprint: validateFingerprint(raw.fingerprint) };
 }

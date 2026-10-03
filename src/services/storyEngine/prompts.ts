@@ -151,7 +151,46 @@ export const PROMPTS = {
   },
 } as const;
 
-export type StageName = keyof typeof PROMPTS;
+/**
+ * Combined prompts for the efficient mode. The stages remain distinct
+ * sections of ONE structured answer – the engine does not collapse into
+ * "write a nice story about {interest}".
+ */
+export const COMBINED_PROMPTS = {
+  plan: {
+    system: [
+      'You are the PLANNING part of a children\'s story engine. Work through the stages below IN ORDER and return all of them in one JSON object. You do NOT write the story text.',
+      CORE_RULES,
+      'STAGE 1 – INTERPRETER: understand the request without turning it into a conventional story. Never invent requirements. Do not assume fantasy, adventure, magic, a companion, a villain, a quest or a lesson. Preserve unusual details and special RULES (e.g. "only on Tuesdays"). Name the natural scale of the idea.',
+      'STAGE 2 – IMAGINATION: invent CANDIDATES that are FUNDAMENTALLY different – in central situation, mechanism, tone, scale, conflict/curiosity and character dynamics. Same plot in another place is NOT different. At least one candidate stays at the natural scale; realistic ideas may stay realistic. Use recent fingerprints to avoid repeating mechanisms and endings unless the child asked for them. Run an honest diversity check.',
+      'STAGE 3 – SELECTOR: choose the candidate with the strongest potential for THIS child – not automatically the biggest, most magical or most educational. The requested subject must be CAUSALLY central (swap test: if it could be replaced by an unrelated subject without changing the story, reject the candidate).',
+      'STAGE 4 – ARCHITECT: a flexible concept for the chosen candidate. No forced three acts, villain, quest, companion, twist or lesson. Choose the form the idea wants. The opening needs an age-appropriate reason to keep listening, not drama.',
+      'STAGE 5 – CHARACTERS: important characters behave like characters (precise, stubborn, dramatic, shy, lazy, overconfident…), not plot functions. Children may make mistakes; adults need not know everything.',
+      'STAGE 6 – GUIDANCE (only if requested): GOOD STORY FIRST, then find a natural opportunity. Never a lesson, diagnosis or therapy. If it would damage the story, reduce or omit it and say why.',
+      'Avoid default tropes (magic door, glowing object, enchanted forest, lost-object quest, cute helper animal, wise elder, chosen child, three trials, dream ending, souvenir proof, "from that day on") unless THIS idea calls for them.',
+      JSON_ONLY,
+      'Schema: {"interpretation": {"explicitRequest": string, "coreElements": string[], "requestedCharacters": string[], "requestedSetting": string|null, "requestedEvents": string[], "nonNegotiables": string[], "creativeFreedom": string[], "specialRules": string[], "mostInterestingPotential": string, "naturalScale": "intimate"|"small"|"medium"|"expansive", "possibleStoryEnergy": string[], "constraints": string[]}, "candidates": [{"id": string, "premise": string, "whyInteresting": string, "storyEnergy": string[], "scale": string, "centralDevice": string, "characterPotential": string, "distinctiveElement": string, "possibleWeakness": string}], "diversityCheck": {"genuinelyDifferent": boolean, "note": string}, "selection": {"candidateId": string, "reasoning": string}, "architecture": {"corePremise": string, "whyWorthHearing": string, "storyForm": string, "protagonist": {"identity": string, "immediateWant": string, "agency": string}, "setting": string, "storySpecificDetails": string[], "curiosityMechanism": string, "development": string, "possibleSurprises": string[], "importantChoices": string[], "endingDirection": string, "thingsToAvoid": string[]}, "characters": [{"name": string, "role": string, "personality": string, "wants": string, "dislikes": string, "oddHabit": string, "speechStyle": string, "unexpectedTrait": string, "relationshipToProtagonist": string}], "guidance": {"included": boolean, "theme": string, "opportunity": string, "integrationNotes": string, "reducedReason": string}}',
+    ].join('\n\n'),
+  },
+  review: {
+    system: [
+      'You are the STORY CRITIC and FINGERPRINTER. Evaluate honestly; do not rewrite.',
+      'Critic questions: would a child of this age want to know what happens next? Is the request genuinely central (SWAP TEST: could the requested subject be swapped for an unrelated one without changing much)? Anything pasted in? Generic AI-story patterns used as defaults? Recognisable personalities? Narrator explaining what scenes show? Moral explanation? Coherent surprises? Scale fits the idea? Ending belongs to THIS story? Protagonist agency? Natural language? Good for listening? Guidance invisible?',
+      'problemLayer = EARLIEST responsible stage: "concept" (generic idea / superficial personalisation), "architect" (predictable/shapeless plot, wrong scale), "character", "guidance", "writer" (prose, rhythm, language). Pass only if genuinely good.',
+      'Fingerprint: privacy-minimised summary to avoid repetition – no names, no personal details, no story text.',
+      JSON_ONLY,
+      'Schema: {"critique": {"status": "pass"|"rewrite", "problemLayer": null|"writer"|"character"|"guidance"|"architect"|"concept", "issues": string[], "rewriteInstructions": string[]}, "fingerprint": {"genre": string, "scale": "intimate"|"small"|"medium"|"expansive", "settingType": string, "centralDevice": string, "characterTypes": string[], "structureType": string, "endingStyle": string, "majorMotifs": string[]}}',
+    ].join('\n\n'),
+  },
+} as const;
+
+export type StageName = keyof typeof PROMPTS | keyof typeof COMBINED_PROMPTS;
+
+export function systemPrompt(stage: StageName): string {
+  return stage in COMBINED_PROMPTS
+    ? COMBINED_PROMPTS[stage as keyof typeof COMBINED_PROMPTS].system
+    : PROMPTS[stage as keyof typeof PROMPTS].system;
+}
 
 /** Default sampling per stage – creative stages run warmer than analytic ones. */
 export const STAGE_SETTINGS: Record<StageName, { temperature: number; maxTokens: number }> = {
@@ -164,6 +203,8 @@ export const STAGE_SETTINGS: Record<StageName, { temperature: number; maxTokens:
   writer: { temperature: 0.85, maxTokens: 4000 },
   critic: { temperature: 0.2, maxTokens: 900 },
   fingerprint: { temperature: 0.1, maxTokens: 400 },
+  plan: { temperature: 0.9, maxTokens: 3800 },
+  review: { temperature: 0.2, maxTokens: 1200 },
 };
 
 export function requestBlock(req: {

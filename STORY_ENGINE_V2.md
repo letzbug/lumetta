@@ -1,5 +1,54 @@
 # Lumetta – Story Engine V2
 
+> **Correction (V2.1):** arbitrary requests no longer fall back to the retired V1 template engine, and the benchmark stories are no longer matched at runtime. Every request takes one V2 path. Without a story provider, Lumetta says so honestly instead of faking a personalised story.
+
+## One path for every request
+
+```
+StoryRequest → toEngineRequest (name → {{HERO}}) → runStoryEngine → provider (POST /api/llm) → any model
+```
+
+### Efficient mode (default, `src/services/storyEngine/engineConfig.ts`)
+
+| Call | Logical stages inside the call |
+|---|---|
+| 1. PLAN | Interpreter, Imagination (4 candidates + diversity check), Selector, Architect, Characters, Guidance. One structured JSON answer, one section per stage. |
+| 2. WRITE | Age- and language-aware writer, writing for the ear |
+| 3. REVIEW | Model critic + fingerprint. Only runs after the free local critic has passed. |
+
+- A passing story costs **3 calls**.
+- A `concept` or `architect` problem returns to PLAN; any other problem returns to WRITE.
+- `maxRewrites` is 1, so a story costs **at most 5 calls**, with no endless loops.
+- Issues still open when the budget runs out are reported as `qualityWarnings`, not hidden.
+- `mode: 'granular'` keeps the one-call-per-stage pipeline (about 9–14 calls) for debugging or small models.
+
+### Provider abstraction
+- The engine only calls `generateStructured(stage, …)` and `generateText(stage, …)`.
+- The server chooses provider and model from `.env`.
+- **Per-stage models:** `STORY_MODEL_PLAN`, `STORY_MODEL_WRITER` and `STORY_MODEL_REVIEW` let you use a cheaper model for the PLAN and REVIEW stages, for example.
+- **Swapping providers:** to change provider, edit only `server/providers/story.mjs` and `.env`. Interpreter, Architect, Critic, UI, Library and TTS stay unchanged.
+
+### Local critic (free, runs on every draft)
+It checks for:
+- retired V1 template content (Mosslight, Pusteblume …);
+- interest-injection sentences ("thought about all the things that make a heart beat faster");
+- the **swap test**: the requested elements must recur across paragraphs and appear early;
+- the name's capitalisation;
+- forbidden phrasing;
+- clichés used as defaults;
+- length and sound-effect spam.
+
+## Demo mode (no provider, e.g. GitHub Pages)
+Inventing a story from *any* idea needs a language model; a static template cannot do it. So without a provider:
+1. `createStory()` throws `NoStoryProvider`.
+2. The UI shows the child's idea and explains that the storytelling service is needed.
+3. It offers the 5 pre-written **example stories**. They are chosen explicitly, labelled "Example story" in the player and library, and are never matched to the request.
+4. The V1 template engine (`services/demo/demoStoryEngine.ts` and `packs/`) has been **deleted**.
+
+To use real generation from GitHub Pages:
+- Host the API server (`npm run start`) in an EU region and set `ALLOWED_ORIGINS=https://letzbug.github.io`.
+- Build the frontend with `VITE_API_BASE=https://<api>/api` and `VITE_DEMO_MODE=false`. These are build variables in your existing workflow; `base: '/lumetta/'` stays as it is.
+
 ## What changed
 The single-prompt / template story generation was replaced by a staged pipeline. UI, visual identity, routing and deployment setup were not changed.
 

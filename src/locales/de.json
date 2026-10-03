@@ -281,5 +281,15 @@
     "companion": "Der Geschichtenbegleiter, ein kleines warmes Licht",
     "skip": "Zum Inhalt springen",
     "selected": "ausgewählt"
+  },
+  "demo": {
+    "title": "Für eine Geschichte aus deiner eigenen Idee braucht Lumetta den Erzähldienst.",
+    "body": "In dieser Demo ist kein Erzähldienst verbunden. Aus jeder beliebigen Idee eine neue Geschichte zu erfinden, gelingt nur mit einem Sprachmodell. Eine Schablone würde deine Idee bloß einfügen, und das wollen wir nicht.",
+    "yourIdea": "Deine Idee: „{idea}“",
+    "examplesTitle": "Stattdessen eine Beispielgeschichte anhören",
+    "examplesNote": "Diese Geschichten wurden vorab geschrieben. Sie sind nicht aus deiner Eingabe entstanden.",
+    "inGerman": "auf Deutsch",
+    "badge": "Beispielgeschichte",
+    "connectHint": "Wie der Erzähldienst verbunden wird, steht in der README."
   }
 }

@@ -67,7 +67,9 @@ Story generation runs through a staged pipeline:
 `Interpreter → Imagination → Selector → Architect → Characters → Guidance → Writer → Critic → targeted rewrite → Fingerprint`
 
 - All stage prompts are in `src/services/storyEngine/prompts.ts`.
-- Demo mode uses five benchmark stories in very different story forms.
+- Every request takes the same V2 path (PLAN → WRITE → REVIEW, about 3 model calls).
+- Without a story provider, Lumetta honestly offers labelled example stories instead of a template.
+- Regression tests: `npm run test:engine`.
 - Details: [STORY_ENGINE_V2.md](STORY_ENGINE_V2.md).
 
 ## Architecture

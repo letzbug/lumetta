@@ -281,5 +281,15 @@
     "companion": "Le compagnon d'histoire, une petite lumière chaleureuse",
     "skip": "Aller au contenu",
     "selected": "sélectionné"
+  },
+  "demo": {
+    "title": "Pour inventer une histoire à partir de votre idée, Lumetta a besoin de son service de narration.",
+    "body": "Aucun service de narration n’est connecté dans cette démo. Inventer une nouvelle histoire à partir de n’importe quelle idée demande un modèle de langage. Un modèle figé ne ferait qu’insérer votre idée, et nous ne le voulons pas.",
+    "yourIdea": "Votre idée : « {idea} »",
+    "examplesTitle": "Écouter plutôt une histoire d’exemple",
+    "examplesNote": "Ces histoires ont été écrites à l’avance. Elles ne sont pas issues de votre idée.",
+    "inGerman": "en allemand",
+    "badge": "Histoire d’exemple",
+    "connectHint": "Le README explique comment connecter le service de narration."
   }
 }

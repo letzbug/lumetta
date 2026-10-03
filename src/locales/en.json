@@ -281,5 +281,15 @@
     "companion": "The story companion, a small warm light",
     "skip": "Skip to content",
     "selected": "selected"
+  },
+  "demo": {
+    "title": "To turn your own idea into a story, Lumetta needs its storytelling service.",
+    "body": "No storytelling service is connected in this demo. Inventing a new story from any idea takes a language model. A template would only paste your idea in, and we don't want that.",
+    "yourIdea": "Your idea: “{idea}”",
+    "examplesTitle": "Listen to an example story instead",
+    "examplesNote": "These stories were written in advance. They were not created from your idea.",
+    "inGerman": "in German",
+    "badge": "Example story",
+    "connectHint": "The README explains how to connect the storytelling service."
   }
 }

@@ -60,6 +60,16 @@ From the player you can play, pause, resume, restart, seek, save, favourite and 
 
 ---
 
+## Story Engine V2
+
+Story generation runs through a staged pipeline:
+
+`Interpreter → Imagination → Selector → Architect → Characters → Guidance → Writer → Critic → targeted rewrite → Fingerprint`
+
+- All stage prompts are in `src/services/storyEngine/prompts.ts`.
+- Demo mode uses five benchmark stories in very different story forms.
+- Details: [STORY_ENGINE_V2.md](STORY_ENGINE_V2.md).
+
 ## Architecture
 
 ```

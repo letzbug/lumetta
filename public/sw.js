@@ -4,8 +4,10 @@
  * the library and its stories open without a network connection.
  * API calls (/api/*) are never cached.
  */
-const VERSION = 'lumetta-v1';
-const SHELL = ['/', '/index.html', '/manifest.webmanifest', '/icons/icon.svg', '/icons/icon-192.png'];
+const VERSION = 'lumetta-v2';
+// Paths are relative to the service worker's scope, so the app works at "/" and at "/lumetta/" (GitHub Pages).
+const BASE = new URL('./', self.location).pathname;
+const SHELL = ['', 'index.html', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png'].map((p) => BASE + p);
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(VERSION).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
@@ -20,7 +22,7 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
-  if (request.method !== 'GET' || url.pathname.startsWith('/api/')) return;
+  if (request.method !== 'GET' || url.pathname.includes('/api/')) return;
 
   // pages: network first, fall back to the cached shell
   if (request.mode === 'navigate') {
@@ -28,10 +30,10 @@ self.addEventListener('fetch', (event) => {
       fetch(request)
         .then((res) => {
           const copy = res.clone();
-          caches.open(VERSION).then((c) => c.put('/index.html', copy));
+          caches.open(VERSION).then((c) => c.put(BASE + 'index.html', copy));
           return res;
         })
-        .catch(() => caches.match('/index.html')),
+        .catch(() => caches.match(BASE + 'index.html')),
     );
     return;
   }

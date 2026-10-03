@@ -9,7 +9,8 @@ import { BaseEngine } from './baseEngine';
  */
 export class BrowserSpeechEngine extends BaseEngine {
   private token = 0;
-  private current?: SpeechSynthesisUtterance;
+  // kept as a field so the utterance is not garbage-collected mid-sentence (lost `end` events)
+  protected current?: SpeechSynthesisUtterance;
   private segStartedAt = 0;
   private pulse = 0;
 

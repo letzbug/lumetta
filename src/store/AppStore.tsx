@@ -4,6 +4,7 @@ import { detectInitialLanguage, LANGUAGES } from '../config/languages';
 import { getRepository, loadSettings, saveSettings } from '../services/storageService';
 import { clearAudioCache } from '../services/tts/audioCache';
 import { logTechnical } from '../services/apiClient';
+import { sanitizeStories } from '../utils/storySanitizer';
 
 export type MotionPreference = 'system' | 'reduced' | 'full';
 
@@ -85,7 +86,7 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     getRepository()
       .then((repo) => repo.list())
-      .then((stories) => setLibrary(stories))
+      .then((stories) => setLibrary(sanitizeStories(stories)))
       .catch((err) => logTechnical('library', err))
       .finally(() => setLibraryReady(true));
   }, []);

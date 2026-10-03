@@ -82,11 +82,16 @@ export interface GeneratedStory {
 export type SettingId = 'space' | 'ocean' | 'forest';
 export type CreatureId = 'dino' | 'dragon' | 'otter';
 
+/** Dedicated cover compositions for Story Engine V2 demo stories. */
+export type CoverSubject = 'digger' | 'park' | 'cat' | 'crocodile';
+
 export interface CoverScene {
   setting: SettingId;
   creature: CreatureId;
   mood: Exclude<StoryMood, 'surprise'>;
   seed: number;
+  /** when set, the illustrated cover paints this subject instead of setting + creature */
+  subject?: CoverSubject;
 }
 
 export interface CoverImage {
@@ -120,6 +125,14 @@ export interface Story extends GeneratedStory {
    * the deep link  #/story/<id>  (see services/triggerService.ts).
    */
   externalTriggerId: string | null;
+  /** Story Engine V2 metadata – optional so stories saved by V1 still load. */
+  engine?: {
+    version: 2;
+    kind: 'v2-remote' | 'v2-demo-fixture' | 'v2-demo-template';
+    storyForm: string;
+    fingerprint?: import('../services/storyEngine/schemas').StoryFingerprint;
+    scenes?: import('../services/storyEngine/schemas').SceneSketch[];
+  };
 }
 
 export type GenerationStage = 'finding' | 'characters' | 'magic' | 'ready';

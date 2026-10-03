@@ -12,11 +12,13 @@
 import { capabilities, resolveConfig } from './config.mjs';
 import { buildStoryPrompt, parseStoryJson } from './prompt.mjs';
 import { lintStory, needsSupport } from './safety.mjs';
-import { generateStoryText } from './providers/story.mjs';
+import { complete, generateStoryText } from './providers/story.mjs';
 import { generateCover } from './providers/image.mjs';
 import { synthesize } from './providers/tts.mjs';
 
-const LIMITS = { story: 30, image: 30, tts: 60 }; // per client per hour – protects budgets
+const LIMITS = { story: 30, image: 30, tts: 60, llm: 400 }; // per client per hour – protects budgets
+// Story Engine V2 stages allowed through the LLM proxy (anything else is rejected)
+const ENGINE_STAGES = new Set(['interpreter', 'imagination', 'selector', 'architect', 'characters', 'guidance', 'writer', 'critic', 'fingerprint']);
 const hits = new Map();
 
 function rateLimited(ip, kind) {
@@ -79,6 +81,26 @@ export function createApiHandler(env = {}) {
     try {
       if (req.method === 'GET' && url === '/api/health') return send(res, 200, caps);
       if (req.method !== 'POST') return fail(res, 405, 'method');
+
+      if (url === '/api/llm') {
+        // Story Engine V2: one pipeline stage per call. Keys stay here.
+        if (!caps.story) return fail(res, 503, 'engine_unavailable');
+        if (rateLimited(ip, 'llm')) return fail(res, 429, 'slow_down');
+        const body = await readJson(req, 96 * 1024);
+        if (!ENGINE_STAGES.has(body.stage)) return fail(res, 400, 'unknown_stage');
+        const system = String(body.system ?? '').slice(0, 24000);
+        const user = String(body.user ?? '').slice(0, 48000);
+        if (!system || !user) return fail(res, 400, 'empty');
+        if (needsSupport(user)) return fail(res, 422, 'needs_support');
+        const text = await complete(cfg.story, {
+          system,
+          user,
+          json: body.json !== false,
+          temperature: Math.min(1.2, Math.max(0, Number(body.temperature) || 0.7)),
+          maxTokens: Math.min(4000, Math.max(200, Number(body.maxTokens) || 2000)),
+        });
+        return send(res, 200, { text });
+      }
 
       if (url === '/api/story') {
         if (!caps.story) return fail(res, 503, 'story_unavailable');

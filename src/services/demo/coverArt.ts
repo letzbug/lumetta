@@ -1,4 +1,4 @@
-import type { CoverImage, CoverScene, CreatureId, SettingId } from '../../types/story';
+import type { CoverImage, CoverScene, CoverSubject, CreatureId, SettingId } from '../../types/story';
 import { seededRandom } from '../../utils/id';
 
 /**
@@ -182,9 +182,99 @@ function forestWorld(p: Palette, rnd: () => number): string {
     ${shrooms}`;
 }
 
+
+// ── Story Engine V2 subjects (dedicated compositions) ──────────────────────
+const SUBJECT_PALETTES: Record<CoverSubject, CoverImage['palette']> = {
+  digger: { deep: '#2F4B6E', mid: '#7FB3C8', glow: '#FFC56E' },
+  park: { deep: '#22305C', mid: '#7E5C8A', glow: '#FFC56E' },
+  cat: { deep: '#18223F', mid: '#3A4C7F', glow: '#FFD98A' },
+  crocodile: { deep: '#2E5B5A', mid: '#8CC7B5', glow: '#FFC56E' },
+};
+
+function subjectWorld(subject: CoverSubject, rnd: () => number): string {
+  if (subject === 'digger') {
+    return `
+    <rect width="600" height="800" fill="url(#bg)"/>
+    <circle cx="470" cy="150" r="54" fill="#FFE2A0"/>
+    <rect x="40" y="250" width="150" height="190" rx="8" fill="#E9D6C2"/><rect x="70" y="285" width="44" height="54" rx="6" fill="#FFF3D6" stroke="#B88A62" stroke-width="5"/>
+    <path d="M0 560 Q300 520 600 560 V800 H0 Z" fill="#C9A47A"/>
+    <path d="M330 600 Q420 520 520 600 Z" fill="#9B7650"/>
+    ${Array.from({ length: 9 }, (_, i) => `<rect x="${20 + i * 66}" y="500" width="10" height="90" fill="#E7843C"/><rect x="${20 + i * 66}" y="520" width="66" height="8" fill="#F3F0E8"/>`).join('')}
+    <g transform="translate(150 520)">
+      <rect x="-20" y="80" width="250" height="60" rx="30" fill="#3B3F4A"/>
+      ${[10, 60, 110, 160, 205].map((x) => `<circle cx="${x}" cy="110" r="16" fill="#6B7180"/>`).join('')}
+      <rect x="10" y="10" width="190" height="78" rx="12" fill="#F6B92B"/>
+      <rect x="40" y="-70" width="110" height="90" rx="12" fill="#F6B92B"/>
+      <rect x="58" y="-56" width="74" height="56" rx="8" fill="#BFE6F2"/>
+      <circle cx="96" cy="-24" r="14" fill="#E9C9A8"/><path d="M80 -32 Q96 -54 112 -32 Z" fill="#E86F2C"/>
+      <g transform="rotate(-38 190 20)"><rect x="180" y="0" width="190" height="34" rx="14" fill="#F2A91F"/></g>
+      <g transform="rotate(42 330 -100)"><rect x="320" y="-110" width="140" height="28" rx="12" fill="#F2A91F"/></g>
+      <path d="M380 -10 l70 0 l-10 60 l-60 0 Z" fill="#B7791F"/>
+      ${[390, 405, 420, 435].map((x) => `<path d="M${x} 50 l6 14 l6 -14 Z" fill="#8A5A17"/>`).join('')}
+    </g>`;
+  }
+  if (subject === 'park') {
+    const spokes = Array.from({ length: 12 }, (_, i) => {
+      const a = (i / 12) * Math.PI * 2;
+      const x = 420 + Math.cos(a) * 130, y = 330 + Math.sin(a) * 130;
+      return `<line x1="420" y1="330" x2="${x.toFixed(1)}" y2="${y.toFixed(1)}" stroke="#F3D9C6" stroke-width="3"/><rect x="${(x - 12).toFixed(1)}" y="${(y - 6).toFixed(1)}" width="24" height="20" rx="6" fill="${i % 2 ? '#F28C7A' : '#7CCBC2'}"/>`;
+    }).join('');
+    const stars = Array.from({ length: 30 }, () => `<circle cx="${(rnd() * 600).toFixed(0)}" cy="${(rnd() * 260).toFixed(0)}" r="${(0.8 + rnd() * 1.4).toFixed(1)}" fill="#FFF3DC" opacity=".8"/>`).join('');
+    return `
+    <rect width="600" height="800" fill="url(#bg)"/>${stars}
+    <circle cx="420" cy="330" r="130" fill="none" stroke="#F3D9C6" stroke-width="6"/>${spokes}
+    <path d="M420 330 L360 560 M420 330 L480 560" stroke="#F3D9C6" stroke-width="8"/>
+    <path d="M-20 300 C 80 120, 160 420, 260 240 S 380 360, 640 200" fill="none" stroke="#FFE3B8" stroke-width="7"/>
+    <path d="M232 258 l20 -14 l4 16 Z M248 246 l20 -6 l-10 14 Z" fill="#FFFFFF"/>
+    <path d="M60 640 L170 470 L280 640 Z" fill="#E86F5C"/><path d="M118 640 L170 470 L222 640 Z" fill="#F6E6D2"/>
+    <circle cx="170" cy="462" r="9" fill="#FFC56E"/>
+    <path d="M0 640 Q300 600 600 650 V800 H0 Z" fill="#1E2A4F"/>
+    <g transform="translate(300 600)"><rect x="-34" y="-6" width="68" height="12" rx="4" fill="#1B2638"/><rect x="-22" y="-56" width="44" height="52" rx="4" fill="#1B2638"/><rect x="-22" y="-20" width="44" height="8" fill="#E86F5C"/></g>`;
+  }
+  if (subject === 'cat') {
+    return `
+    <rect width="600" height="800" fill="#2A2238"/>
+    <rect x="90" y="110" width="420" height="440" rx="18" fill="url(#bg)" stroke="#6B5A4A" stroke-width="18"/>
+    <line x1="300" y1="110" x2="300" y2="550" stroke="#6B5A4A" stroke-width="12"/><line x1="90" y1="330" x2="510" y2="330" stroke="#6B5A4A" stroke-width="12"/>
+    <circle cx="420" cy="200" r="44" fill="#FFF1C9"/><circle cx="406" cy="190" r="8" fill="#EBD9A8"/>
+    <path d="M110 520 L180 450 L250 520 Z" fill="#141A30"/><rect x="128" y="500" width="104" height="30" fill="#141A30"/>
+    <rect x="60" y="550" width="480" height="40" rx="8" fill="#8A6E58"/>
+    <g transform="translate(300 470)">
+      <path d="M-40 80 Q-80 40 -60 -10 Q-70 -60 -40 -80 L-30 -110 L-10 -86 Q0 -90 10 -86 L30 -110 L40 -80 Q70 -60 60 -10 Q80 40 40 80 Z" fill="#8C8C96"/>
+      <path d="M40 70 Q110 60 100 0" fill="none" stroke="#8C8C96" stroke-width="16" stroke-linecap="round"/>
+      <path d="M-8 -60 Q0 -70 8 -60 L0 -50 Z" fill="#F4F1EC"/>
+      <ellipse cx="-20" cy="-66" rx="7" ry="4" fill="#E8D27A"/><ellipse cx="20" cy="-66" rx="7" ry="4" fill="#E8D27A"/>
+    </g>
+    <g transform="translate(470 520)"><rect x="-46" y="-34" width="92" height="56" rx="12" fill="#3B4C7A"/><rect x="-36" y="-24" width="72" height="34" rx="6" fill="#15203A"/>
+      <text x="0" y="0" text-anchor="middle" font-family="monospace" font-size="20" fill="#FFC56E">23:59</text></g>
+    <path d="M0 590 H600 V800 H0 Z" fill="#3A2F45"/>`;
+  }
+  // crocodile
+  return `
+    <rect width="600" height="800" fill="url(#bg)"/>
+    <rect x="300" y="170" width="260" height="380" rx="10" fill="#F2EDE6"/>
+    ${[0, 1].map((r) => [0, 1].map((col) => `<rect x="${330 + col * 110}" y="${260 + r * 120}" width="80" height="80" rx="8" fill="#CFE8F0"/>`).join('')).join('')}
+    <g transform="translate(430 205)"><path d="M-24 -18 Q0 -34 24 -18 Q30 10 16 30 Q10 14 0 14 Q-10 14 -16 30 Q-30 10 -24 -18 Z" fill="#FFFFFF" stroke="#7CCBC2" stroke-width="4"/></g>
+    <path d="M0 600 H600 V800 H0 Z" fill="#7C8792"/><rect x="0" y="590" width="600" height="14" fill="#C9CED4"/>
+    <g transform="translate(70 520)">
+      <path d="M0 80 Q10 30 70 26 L120 0 Q190 -14 250 10 L300 30 Q340 40 345 80 Z" fill="#F4A6C1"/>
+      <path d="M130 6 L180 0 Q215 2 240 22 L140 26 Z" fill="#CFE8F0"/>
+      <circle cx="80" cy="84" r="26" fill="#2B2B33"/><circle cx="80" cy="84" r="10" fill="#C9CED4"/>
+      <circle cx="270" cy="84" r="26" fill="#2B2B33"/><circle cx="270" cy="84" r="10" fill="#C9CED4"/>
+      <g transform="translate(170 -6)">
+        <path d="M0 0 Q20 -40 60 -36 L150 -26 Q160 -14 150 -6 L40 6 Z" fill="#5E9E70"/>
+        <path d="M60 -10 L150 -16" stroke="#3E6E50" stroke-width="3"/>
+        ${[70, 86, 102, 118, 134].map((x) => `<path d="M${x} -12 l5 8 l5 -8 Z" fill="#FFFFFF"/>`).join('')}
+        <circle cx="40" cy="-30" r="8" fill="#FFFFFF"/><circle cx="42" cy="-30" r="4" fill="#1B2638"/>
+        <path d="M8 -36 L60 -50 L70 -38 L14 -26 Z" fill="#B8865B"/><path d="M20 -44 h40 M24 -38 h36" stroke="#8A5E3B" stroke-width="2"/>
+      </g>
+    </g>`;
+}
+
 export function createIllustratedCover(scene: CoverScene): CoverImage {
   const p = paletteFor(scene);
   const rnd = seededRandom(scene.seed || 1);
+  if (scene.subject) return subjectCover(scene.subject, rnd);
   const world = scene.setting === 'space' ? spaceWorld(p, rnd) : scene.setting === 'ocean' ? oceanWorld(p, rnd) : forestWorld(p, rnd);
   const creatureX = scene.setting === 'space' ? 290 : 300;
   const creatureY = scene.setting === 'forest' ? 640 : 660;
@@ -211,4 +301,26 @@ export function createIllustratedCover(scene: CoverScene): CoverImage {
     src: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`,
     palette: { deep: p.deep, mid: p.mid, glow: p.glow },
   };
+}
+
+function subjectCover(subject: CoverSubject, rnd: () => number): CoverImage {
+  const pal = SUBJECT_PALETTES[subject];
+  const sky: Record<CoverSubject, [string, string]> = {
+    digger: ['#A9D8EA', '#F6DDBD'],
+    park: ['#1E2A55', '#E9A27A'],
+    cat: ['#1A2547', '#3E5288'],
+    crocodile: ['#BFE6EE', '#F3E2C9'],
+  };
+  const [top, bottom] = sky[subject];
+  const lightAt: Record<CoverSubject, [number, number]> = { digger: [520, 420], park: [120, 200], cat: [200, 210], crocodile: [120, 200] };
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 800" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${top}"/><stop offset="1" stop-color="${bottom}"/></linearGradient>
+    <radialGradient id="lightCore"><stop offset="0" stop-color="#FFFBEF"/><stop offset=".55" stop-color="${pal.glow}"/><stop offset="1" stop-color="#F59E3D"/></radialGradient>
+    <radialGradient id="lightHalo"><stop offset="0" stop-color="${pal.glow}" stop-opacity=".55"/><stop offset="1" stop-color="${pal.glow}" stop-opacity="0"/></radialGradient>
+  </defs>
+  ${subjectWorld(subject, rnd)}
+  ${light(lightAt[subject][0], lightAt[subject][1], 14, pal.glow)}
+</svg>`;
+  return { kind: 'illustration', src: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`, palette: pal };
 }

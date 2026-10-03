@@ -22,6 +22,9 @@ export interface StoryRepository {
 
 const STORE = 'stories';
 
+/** Newest first – tolerant of damaged or legacy records without a date. */
+const byNewest = (a: Partial<Story>, b: Partial<Story>) => String(b?.createdAt ?? '').localeCompare(String(a?.createdAt ?? ''));
+
 class IndexedDbRepository implements StoryRepository {
   readonly kind = 'indexeddb' as const;
   private db: Promise<IDBDatabase>;
@@ -55,7 +58,7 @@ class IndexedDbRepository implements StoryRepository {
 
   async list() {
     const all = ((await this.tx<Story[]>('readonly', (s) => s.getAll())) ?? []) as Story[];
-    return all.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    return all.filter(Boolean).sort(byNewest);
   }
   async get(id: string) {
     return (await this.tx<Story>('readonly', (s) => s.get(id))) as Story | undefined;
@@ -85,7 +88,8 @@ class LocalStorageRepository implements StoryRepository {
     localStorage.setItem(this.key, JSON.stringify(stories));
   }
   async list() {
-    return this.read().sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    const all = this.read();
+    return (Array.isArray(all) ? all : []).filter(Boolean).sort(byNewest);
   }
   async get(id: string) {
     return this.read().find((s) => s.id === id);
@@ -109,7 +113,7 @@ export function getRepository(): Promise<StoryRepository> {
       if (typeof indexedDB !== 'undefined') {
         try {
           const candidate = new IndexedDbRepository();
-          await candidate.list();
+          await candidate.get('__probe__'); // cheap availability check, independent of stored data
           return candidate;
         } catch {
           /* fall through */

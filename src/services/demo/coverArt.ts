@@ -189,6 +189,10 @@ const SUBJECT_PALETTES: Record<CoverSubject, CoverImage['palette']> = {
   park: { deep: '#22305C', mid: '#7E5C8A', glow: '#FFC56E' },
   cat: { deep: '#18223F', mid: '#3A4C7F', glow: '#FFD98A' },
   crocodile: { deep: '#2E5B5A', mid: '#8CC7B5', glow: '#FFC56E' },
+  cup: { deep: '#3E3150', mid: '#9B748C', glow: '#FFD08A' },
+  vehicle: { deep: '#243A5A', mid: '#6888A6', glow: '#FFC56E' },
+  robot: { deep: '#182B46', mid: '#47758B', glow: '#9EE7E5' },
+  castle: { deep: '#352B57', mid: '#796A9C', glow: '#FFD08A' },
   abstract: { deep: '#1D2B52', mid: '#4C5E94', glow: '#FFC56E' },
 };
 
@@ -202,6 +206,31 @@ function subjectWorld(subject: CoverSubject, rnd: () => number): string {
       return `<path d="M0 ${y} C 150 ${y - 60 - rnd() * 60}, 330 ${y + 40 - rnd() * 60}, 600 ${y - 30 - rnd() * 50} V800 H0 Z" fill="${shades[i]}"/>`;
     }).join('');
     return `<rect width="600" height="800" fill="url(#bg)"/>${stars}${shapes}`;
+  }
+  if (subject === 'cup') {
+    return `<rect width="600" height="800" fill="url(#bg)"/>
+    <circle cx="465" cy="145" r="54" fill="#FFE4A8" opacity=".9"/>
+    <path d="M0 560 Q170 510 330 555 T600 535 V800 H0 Z" fill="#342A48"/>
+    <rect x="80" y="500" width="440" height="28" rx="12" fill="#9B765F"/>
+    <g transform="translate(300 405)"><ellipse cx="0" cy="100" rx="130" ry="24" fill="#171526" opacity=".22"/>
+    <path d="M-90 0 H70 V125 Q70 165 25 175 H-45 Q-90 165 -90 125 Z" fill="#F1DED0"/>
+    <path d="M70 30 Q145 25 140 88 Q135 135 72 125" fill="none" stroke="#F1DED0" stroke-width="28"/>
+    <ellipse cx="-10" cy="4" rx="80" ry="18" fill="#6C4738"/>
+    <path d="M-45 -28 C-75 -75 -20 -95 -42 -140 M0 -25 C-25 -72 30 -95 10 -145 M45 -28 C20 -75 75 -100 58 -145" fill="none" stroke="#FFF3DF" stroke-width="10" stroke-linecap="round" opacity=".6"/></g>`;
+  }
+  if (subject === 'vehicle') {
+    return `<rect width="600" height="800" fill="url(#bg)"/><circle cx="475" cy="145" r="50" fill="#FFE3A1"/>
+    <path d="M0 590 Q300 535 600 585 V800 H0 Z" fill="#27324A"/><path d="M0 675 Q300 620 600 665" fill="none" stroke="#F4E8C9" stroke-width="10" stroke-dasharray="45 32"/>
+    <g transform="translate(110 450)"><path d="M20 100 L75 30 H285 L360 100 V170 H0 V115 Q0 100 20 100Z" fill="#E56D58"/>
+    <path d="M95 45 H265 L305 100 H55 Z" fill="#BFE3ED"/><circle cx="75" cy="170" r="38" fill="#202532"/><circle cx="290" cy="170" r="38" fill="#202532"/><circle cx="75" cy="170" r="16" fill="#BFC6CF"/><circle cx="290" cy="170" r="16" fill="#BFC6CF"/></g>`;
+  }
+  if (subject === 'robot') {
+    return `<rect width="600" height="800" fill="url(#bg)"/>${Array.from({length:35},()=>`<circle cx="${(rnd()*600).toFixed(0)}" cy="${(rnd()*500).toFixed(0)}" r="${(1+rnd()*2).toFixed(1)}" fill="#EAFBFF" opacity=".7"/>`).join('')}
+    <path d="M0 610 Q300 560 600 610 V800 H0 Z" fill="#1B2940"/><g transform="translate(300 430)"><rect x="-100" y="-80" width="200" height="170" rx="38" fill="#B8CED5"/><rect x="-70" y="-48" width="140" height="76" rx="22" fill="#243B50"/><circle cx="-35" cy="-10" r="13" fill="#9EE7E5"/><circle cx="35" cy="-10" r="13" fill="#9EE7E5"/><path d="M-28 50 Q0 70 28 50" fill="none" stroke="#536B75" stroke-width="8" stroke-linecap="round"/><path d="M0 -80 V-130" stroke="#B8CED5" stroke-width="12"/><circle cx="0" cy="-145" r="16" fill="#FFC56E"/><rect x="-75" y="90" width="150" height="120" rx="30" fill="#8FB0BA"/></g>`;
+  }
+  if (subject === 'castle') {
+    return `<rect width="600" height="800" fill="url(#bg)"/><circle cx="460" cy="150" r="52" fill="#FFE6AE"/>${Array.from({length:24},()=>`<circle cx="${(rnd()*600).toFixed(0)}" cy="${(rnd()*360).toFixed(0)}" r="1.5" fill="#FFF4DA"/>`).join('')}
+    <path d="M0 650 Q300 590 600 640 V800 H0 Z" fill="#282440"/><g transform="translate(135 300)" fill="#C8B6C9"><rect x="70" y="100" width="190" height="260"/><rect x="0" y="145" width="90" height="215"/><rect x="240" y="145" width="90" height="215"/><path d="M0 145 L45 80 L90 145 Z M240 145 L285 80 L330 145 Z M70 100 L165 25 L260 100 Z"/><path d="M140 360 V270 Q165 235 190 270 V360 Z" fill="#44385F"/></g>`;
   }
   if (subject === 'digger') {
     return `
@@ -321,10 +350,14 @@ function subjectCover(subject: CoverSubject, rnd: () => number): CoverImage {
     park: ['#1E2A55', '#E9A27A'],
     cat: ['#1A2547', '#3E5288'],
     crocodile: ['#BFE6EE', '#F3E2C9'],
+    cup: ['#2B2342', '#A36F72'],
+    vehicle: ['#8CC9E0', '#F2C89B'],
+    robot: ['#14243E', '#3F7080'],
+    castle: ['#272044', '#7A648E'],
     abstract: ['#16224A', '#5E5A8E'],
   };
   const [top, bottom] = sky[subject];
-  const lightAt: Record<CoverSubject, [number, number]> = { digger: [520, 420], park: [120, 200], cat: [200, 210], crocodile: [120, 200], abstract: [300, 330] };
+  const lightAt: Record<CoverSubject, [number, number]> = { digger: [520, 420], park: [120, 200], cat: [200, 210], crocodile: [120, 200], cup: [410, 330], vehicle: [115, 260], robot: [440, 260], castle: [110, 250], abstract: [300, 330] };
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 800" preserveAspectRatio="xMidYMid slice">
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${top}"/><stop offset="1" stop-color="${bottom}"/></linearGradient>

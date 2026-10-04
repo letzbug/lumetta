@@ -64,6 +64,9 @@ function initialSettings(): Settings {
   // never start in a language that is not enabled (e.g. lb before launch)
   if (!LANGUAGES[s.uiLanguage]?.uiEnabled) s.uiLanguage = lang;
   if (!LANGUAGES[s.storyLanguage]?.storyEnabled) s.storyLanguage = s.uiLanguage;
+  // There is currently one real studio narrator (Eve). Old saved settings may
+  // still contain the former placeholder male/neutral ids. Normalize them.
+  s.voiceId = 'warm-female';
   return s;
 }
 

@@ -135,7 +135,10 @@ function Player({ story }: { story: Story }) {
   };
 
   const ratio = state.duration ? Math.min(1, state.currentTime / state.duration) : 0;
-  const minutes = Math.max(1, Math.round(story.estimatedDuration / 60));
+  // Once studio audio is ready, show its real duration rather than the text
+  // estimate. This prevents labels such as ‘5 min’ beside a 1:56 narration.
+  const displayDuration = state.duration > 0 ? state.duration : story.estimatedDuration;
+  const minutes = Math.max(1, Math.round(displayDuration / 60));
   const modeNote =
     state.mode === 'silent' ? t('player.silent')
     : state.mode === 'device' ? t('player.devicevoice')

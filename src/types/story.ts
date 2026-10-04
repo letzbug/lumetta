@@ -85,7 +85,7 @@ export type SettingId = 'space' | 'ocean' | 'forest';
 export type CreatureId = 'dino' | 'dragon' | 'otter';
 
 /** Dedicated cover compositions for Story Engine V2 demo stories. */
-export type CoverSubject = 'digger' | 'park' | 'cat' | 'crocodile' | 'abstract';
+export type CoverSubject = 'digger' | 'park' | 'cat' | 'crocodile' | 'cup' | 'vehicle' | 'robot' | 'castle' | 'abstract';
 
 export interface CoverScene {
   setting: SettingId;

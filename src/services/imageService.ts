@@ -18,13 +18,28 @@ export const COVER_STYLE =
  */
 export function sceneFor(story: GeneratedStory, req: StoryRequest): CoverScene {
   if (story.scene) return story.scene;
-  return {
-    setting: 'forest',
-    creature: 'otter',
-    mood: req.storyMood === 'surprise' ? 'magical' : req.storyMood,
-    seed: hashString(story.title),
-    subject: 'abstract',
+  // Live stories do not all get the same generic cover. Derive a small,
+  // privacy-safe illustration theme from the AI's cover prompt/title. This is
+  // local and instant; a configured image provider can still replace it later.
+  const hint = `${story.title} ${story.coverPrompt}`.toLowerCase();
+  const base = {
+    mood: req.storyMood === 'surprise' ? 'magical' as const : req.storyMood,
+    seed: hashString(`${story.title}|${story.coverPrompt}`),
   };
+  if (/tasse|cup|mug|thé|tee|kaffee|coffee|chocolat/.test(hint)) return { ...base, setting: 'forest', creature: 'otter', subject: 'cup' };
+  if (/bagger|excavat|digger|baustell|chantier/.test(hint)) return { ...base, setting: 'forest', creature: 'otter', subject: 'digger' };
+  if (/katze|cat|chat|kater/.test(hint)) return { ...base, setting: 'forest', creature: 'otter', subject: 'cat' };
+  if (/krokodil|crocodile/.test(hint)) return { ...base, setting: 'forest', creature: 'otter', subject: 'crocodile' };
+  if (/freizeitpark|theme park|parc d.attractions|achterbahn|roller.?coaster/.test(hint)) return { ...base, setting: 'forest', creature: 'otter', subject: 'park' };
+  if (/auto|car|voiture|porsche|truck|camion|bus|train|zug|véhicule/.test(hint)) return { ...base, setting: 'forest', creature: 'otter', subject: 'vehicle' };
+  if (/robot|android|machine/.test(hint)) return { ...base, setting: 'space', creature: 'dino', subject: 'robot' };
+  if (/schloss|castle|château|prinz|princess|princesse|ritter|knight/.test(hint)) return { ...base, setting: 'forest', creature: 'dragon', subject: 'castle' };
+  if (/weltraum|space|planet|mars|mond|moon|rakete|rocket|astronaut/.test(hint)) return { ...base, setting: 'space', creature: /dino/.test(hint) ? 'dino' : 'dragon' };
+  if (/meer|ocean|océan|unterwasser|underwater|poisson|fish/.test(hint)) return { ...base, setting: 'ocean', creature: 'otter' };
+  if (/drache|dragon/.test(hint)) return { ...base, setting: 'forest', creature: 'dragon' };
+  if (/dino|dinosaur/.test(hint)) return { ...base, setting: 'forest', creature: 'dino' };
+  return { ...base, setting: 'forest', creature: 'otter', subject: 'abstract' };
+
 }
 
 export function buildCoverPrompt(story: GeneratedStory, req: StoryRequest): string {

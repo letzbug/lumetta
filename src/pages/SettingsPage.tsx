@@ -4,11 +4,9 @@ import { useStore, type MotionPreference } from '../store/AppStore';
 import { AppChrome } from '../components/AppChrome';
 import { Icon } from '../components/Icon';
 import { ALL_LANGUAGES } from '../config/languages';
-import { VOICES } from '../config/voices';
 import { APP_CONFIG } from '../config/app';
 import { GUIDANCE } from '../config/catalog';
 import { getBackendStatus } from '../services/apiClient';
-import { previewVoice } from '../services/tts/ttsService';
 import type { LanguageCode } from '../types/story';
 
 const PRIVACY_POINTS = ['account', 'minimal', 'local', 'names', 'control'] as const;
@@ -66,28 +64,6 @@ export function SettingsPage({ section }: { section?: string }) {
               >
                 {l.comingSoon ? t('languages.lbSoon') : l.nativeName}
               </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="settings__group">
-          <h2 className="settings__label" id="voice">{t('settings.voice')}</h2>
-          <div className="voices" role="radiogroup" aria-labelledby="voice">
-            {VOICES.map((v) => (
-              <div key={v.id} className="voice" data-selected={settings.voiceId === v.id}>
-                <button role="radio" aria-checked={settings.voiceId === v.id} className="voice__pick" onClick={() => updateSettings({ voiceId: v.id })}>
-                  <span className="voice__name">{t(v.labelKey)}</span>
-                  <span className="voice__desc">{t(v.descriptionKey)}</span>
-                </button>
-                <button
-                  className="btn btn--small btn--outline"
-                  onClick={() => previewVoice(settings.storyLanguage, v.id, t('settings.testPhrase'))}
-                  aria-label={`${t('settings.testVoice')}: ${t(v.labelKey)}`}
-                >
-                  <Icon name="speaker" size={18} />
-                  {t('settings.testVoice')}
-                </button>
-              </div>
             ))}
           </div>
         </div>

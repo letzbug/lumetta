@@ -2,8 +2,7 @@ import { useI18n } from '../../i18n/i18n';
 import { useStore } from '../../store/AppStore';
 import { GUIDANCE, GUIDANCE_THEMES } from '../../config/catalog';
 import { ALL_LANGUAGES } from '../../config/languages';
-import { VOICES } from '../../config/voices';
-import type { GuidanceThemeId, LanguageCode, VoiceId } from '../../types/story';
+import type { GuidanceThemeId, LanguageCode } from '../../types/story';
 
 export function StepGuidance() {
   const { t } = useI18n();
@@ -60,16 +59,6 @@ export function StepGuidance() {
                 <option key={l.code} value={l.code} disabled={!l.storyEnabled}>
                   {l.comingSoon ? t('languages.lbSoon') : l.nativeName}
                 </option>
-              ))}
-            </select>
-          </div>
-        </div>
-        <div className="field field--inline">
-          <label className="field__label" htmlFor="story-voice">{t('create.guidance.voice')}</label>
-          <div className="select">
-            <select id="story-voice" value={draft.voiceId} onChange={(e) => updateDraft({ voiceId: e.target.value as VoiceId })}>
-              {VOICES.map((v) => (
-                <option key={v.id} value={v.id}>{t(v.labelKey)}</option>
               ))}
             </select>
           </div>

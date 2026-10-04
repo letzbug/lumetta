@@ -5,6 +5,7 @@ import { getRepository, loadSettings, saveSettings } from '../services/storageSe
 import { clearAudioCache } from '../services/tts/audioCache';
 import { logTechnical } from '../services/apiClient';
 import { sanitizeStories } from '../utils/storySanitizer';
+import { createIllustratedCover } from '../services/demo/coverArt';
 
 export type MotionPreference = 'system' | 'reduced' | 'full';
 export type NarrationSpeed = 'normal' | 'calm' | 'very-calm';
@@ -118,10 +119,28 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
 
   const persist = useCallback(async (story: Story) => {
     const repo = await getRepository();
-    await repo.put(story);
-    setLibrary((list) => [story, ...list.filter((s) => s.id !== story.id)].sort((a, b) => b.createdAt.localeCompare(a.createdAt)));
-    setCurrent((c) => (c && c.id === story.id ? story : c));
-    return story;
+    let storedStory = story;
+
+    try {
+      await repo.put(storedStory);
+    } catch (err) {
+      // Generated xAI covers are base64 data URLs and can be large. Some
+      // browsers/storage modes reject such a record even though the story
+      // itself is perfectly saveable. Never let a cover prevent saving.
+      if (story.cover?.kind === 'image' && story.scene) {
+        storedStory = { ...story, cover: createIllustratedCover(story.scene) };
+        await repo.put(storedStory);
+        logTechnical('library-cover-fallback', err);
+      } else {
+        throw err;
+      }
+    }
+
+    setLibrary((list) => [storedStory, ...list.filter((s) => s.id !== storedStory.id)].sort((a, b) => b.createdAt.localeCompare(a.createdAt)));
+    // Keep the generated cover on the currently open story. The compact
+    // fallback is only used if the browser could not persist the large image.
+    setCurrent((c) => (c && c.id === story.id ? { ...story, saved: true } : c));
+    return { ...story, saved: true };
   }, []);
 
   const saveStory = useCallback((story: Story) => persist({ ...story, saved: true }), [persist]);

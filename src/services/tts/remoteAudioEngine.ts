@@ -1,5 +1,6 @@
 import type { Segment } from '../../utils/text';
 import { BaseEngine } from './baseEngine';
+import type { NarrationPayload } from '../apiClient';
 
 /**
  * Studio narration: audio produced by the server's TTS provider (TTS_PROVIDER).
@@ -14,8 +15,9 @@ export class RemoteAudioEngine extends BaseEngine {
   private analyser?: AnalyserNode;
   private ctx?: AudioContext;
   private buffer?: Uint8Array<ArrayBuffer>;
+  private exactSegmentTimes?: number[];
 
-  constructor(segments: Segment[], estimatedDuration: number, private readonly load: () => Promise<Blob>, private readonly onFail: () => void) {
+  constructor(segments: Segment[], estimatedDuration: number, private readonly load: () => Promise<NarrationPayload>, private readonly onFail: () => void) {
     super(segments, 'studio', estimatedDuration);
     this.audio.preload = 'auto';
     this.audio.addEventListener('ended', () => {
@@ -31,7 +33,9 @@ export class RemoteAudioEngine extends BaseEngine {
   private async prepare() {
     this.set({ status: 'loading' });
     try {
-      const blob = await this.load();
+      const asset = await this.load();
+      const blob = asset.blob;
+      this.exactSegmentTimes = this.alignSegments(asset);
       this.url = URL.createObjectURL(blob);
       this.audio.src = this.url;
       this.ready = true;
@@ -41,6 +45,45 @@ export class RemoteAudioEngine extends BaseEngine {
       this.set({ status: 'error' });
       this.onFail();
     }
+  }
+
+  private alignSegments(asset: NarrationPayload): number[] | undefined {
+    const chars = asset.graphChars;
+    const times = asset.graphTimes;
+    if (!chars?.length || !times?.length || chars.length !== times.length) return undefined;
+    // xAI timestamps mirror the TTS input, including [performance tags]. Remove
+    // those tags while retaining a map from visible character -> audio time.
+    let clean = '';
+    const starts: number[] = [];
+    let inTag = false;
+    for (let i = 0; i < chars.length; i++) {
+      const ch = chars[i];
+      if (ch === '[') { inTag = true; continue; }
+      if (inTag) { if (ch === ']') inTag = false; continue; }
+      clean += ch;
+      starts.push(times[i]?.[0] ?? 0);
+    }
+    const out: number[] = [];
+    let cursor = 0;
+    for (const seg of this.segments) {
+      let at = clean.indexOf(seg.text, cursor);
+      if (at < 0) at = clean.indexOf(seg.text);
+      if (at < 0) return undefined;
+      out.push(starts[at] ?? 0);
+      cursor = at + seg.text.length;
+    }
+    return out;
+  }
+
+  protected segmentTime(index: number) {
+    return this.exactSegmentTimes?.[Math.min(index, this.exactSegmentTimes.length - 1)] ?? super.segmentTime(index);
+  }
+
+  protected segmentAt(time: number) {
+    if (!this.exactSegmentTimes?.length) return super.segmentAt(time);
+    let i = 0;
+    while (i + 1 < this.exactSegmentTimes.length && time >= this.exactSegmentTimes[i + 1]) i++;
+    return i;
   }
 
   private connectAnalyser() {

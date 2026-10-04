@@ -2,13 +2,13 @@ import type { LanguageCode, Story, VoiceId } from '../../types/story';
 import { LANGUAGES } from '../../config/languages';
 import { BROWSER_VOICE_HINTS, VOICES } from '../../config/voices';
 import { ageBand } from '../../config/ageProfiles';
-import { getBackendStatus, logTechnical, postForBlob } from '../apiClient';
+import { getBackendStatus, logTechnical, postForNarration } from '../apiClient';
 import { segmentStory } from '../../utils/text';
 import { BrowserSpeechEngine } from './browserSpeechEngine';
 import { ReadAlongEngine } from './readAlongEngine';
 import { RemoteAudioEngine } from './remoteAudioEngine';
-import { getCachedAudio, putCachedAudio } from './audioCache';
 import type { NarrationEngine } from './types';
+import type { NarrationSpeed } from '../../store/AppStore';
 
 /**
  * Narration service – picks the best available voice:
@@ -16,24 +16,25 @@ import type { NarrationEngine } from './types';
  *   2. device voice (demo fallback, only for languages where it is allowed)
  *   3. silent read-along
  */
-export async function createNarration(story: Story, voiceId: VoiceId): Promise<NarrationEngine> {
+export async function createNarration(story: Story, voiceId: VoiceId, narrationSpeed: NarrationSpeed = 'normal'): Promise<NarrationEngine> {
   const segments = segmentStory(story.paragraphs);
   const status = await getBackendStatus();
   const lang = LANGUAGES[story.language];
   const band = ageBand(story.age);
+  const speedFactor = narrationSpeed === 'very-calm' ? 0.76 : narrationSpeed === 'calm' ? 0.88 : 1;
+  const ttsSpeed = Math.max(0.7, Math.min(1.5, band.ttsRate * speedFactor));
 
   if (status.tts) {
-    const key = `${story.id}:${voiceId}`;
     return new RemoteAudioEngine(
       segments,
       story.estimatedDuration,
-      async () => {
-        const cached = await getCachedAudio(key);
-        if (cached) return cached;
-        const blob = await postForBlob('/tts', { text: story.voiceScript || story.story, language: story.language, voiceId, rate: band.ttsRate });
-        void putCachedAudio(key, blob);
-        return blob;
-      },
+      async () => postForNarration('/tts', {
+        text: story.voiceScript || story.story,
+        language: story.language,
+        voiceId,
+        speed: ttsSpeed,
+        withTimestamps: true,
+      }),
       () => logTechnical('tts', 'studio voice unavailable'),
     );
   }

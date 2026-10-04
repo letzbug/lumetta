@@ -136,7 +136,11 @@
     "newStory": "Create another story",
     "toLibrary": "Our stories",
     "unsavedLeave": "This story isn’t saved yet. Save it to hear it again later.",
-    "leave": "Leave without saving"
+    "leave": "Leave without saving",
+    "speed": "Narration speed",
+    "speed_normal": "Normal",
+    "speed_calm": "Calm",
+    "speed_very_calm": "Very calm"
   },
   "library": {
     "title": "Our stories",

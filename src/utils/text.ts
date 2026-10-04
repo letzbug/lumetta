@@ -45,3 +45,14 @@ export function splitParagraphs(story: string): string[] {
     .map((p) => p.replace(/\s+/g, ' ').trim())
     .filter(Boolean);
 }
+
+
+/** Remove expressive TTS direction tags while preserving every story word. */
+export function stripVoiceCues(text: string): string {
+  return text
+    .replace(/\[(?:pause|whisper|softly|excited|surprised|sad|giggle|laugh|calm|warmly|slowly)\]/gi, '')
+    .replace(/[ \t]+/g, ' ')
+    .replace(/ *\n */g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}

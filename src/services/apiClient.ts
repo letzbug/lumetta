@@ -75,6 +75,35 @@ export async function postForBlob(path: string, body: unknown, timeoutMs = 120_0
   return res.blob();
 }
 
+
+export interface NarrationPayload {
+  blob: Blob;
+  graphChars?: string[];
+  graphTimes?: number[][];
+  duration?: number;
+}
+
+/** TTS response: accepts both legacy raw MP3 and xAI timestamp JSON. */
+export async function postForNarration(path: string, body: unknown, timeoutMs = 120_000): Promise<NarrationPayload> {
+  const res = await fetchWithTimeout(`${APP_CONFIG.apiBase}${path}`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+  }, timeoutMs).catch((err) => { throw new ServiceError('network', `Request to ${path} failed`, err); });
+  if (!res.ok) throw new ServiceError(`http_${res.status}`, `${path} answered ${res.status}`);
+  const type = res.headers.get('content-type') || '';
+  if (!type.includes('application/json')) return { blob: await res.blob() };
+  const data = await res.json() as { audio?: string; content_type?: string; duration?: number; audio_timestamps?: { graph_chars?: string[]; graph_times?: number[][] } };
+  if (!data.audio) throw new ServiceError('tts_payload', 'TTS response has no audio');
+  const raw = atob(data.audio);
+  const bytes = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
+  return {
+    blob: new Blob([bytes], { type: data.content_type || 'audio/mpeg' }),
+    graphChars: data.audio_timestamps?.graph_chars,
+    graphTimes: data.audio_timestamps?.graph_times,
+    duration: data.duration,
+  };
+}
+
 /** Development logging. Never shown to families. */
 export function logTechnical(context: string, error: unknown) {
   if (import.meta.env?.DEV) console.error(`[lumetta:${context}]`, error);

@@ -4,7 +4,7 @@ import { createCover, sceneFor } from './imageService';
 import { createIllustratedCover } from './demo/coverArt';
 import { getBackendStatus, logTechnical, ServiceError } from './apiClient';
 import { screenText } from './safetyService';
-import { splitParagraphs } from '../utils/text';
+import { splitParagraphs, stripVoiceCues } from '../utils/text';
 import { runStoryEngine, type EngineStage } from './storyEngine/storyEngine';
 import { buildExample } from './storyEngine/demo/demoEngine';
 import { RemoteProvider } from './storyEngine/provider';
@@ -147,13 +147,18 @@ export async function createStory(req: StoryRequest, opts: CreateStoryOptions = 
 
 /** Shared mapping from an engine result to a library story. */
 function toStory(result: EngineResult, req: StoryRequest, name: string, scene?: CoverScene): Story {
-  const paragraphs = splitParagraphs(finalizeText(result.story.text, name));
+  // One master narration: the expressive script is authoritative. The visible
+  // story is derived only by removing performance cues, so Eve can never skip
+  // words that the child sees on the page.
+  const masterVoice = finalizeText(result.story.voiceScript || result.story.text, name);
+  const visibleText = stripVoiceCues(masterVoice);
+  const paragraphs = splitParagraphs(visibleText);
   if (!paragraphs.length) throw new ServiceError('empty_story', 'Engine returned no text');
   const generated: GeneratedStory = {
     title: finalizeText(result.story.title, name).trim(),
     summary: finalizeText(result.metadata.summary ?? '', name),
     story: paragraphs.join('\n\n'),
-    voiceScript: result.story.voiceScript ? finalizeText(result.story.voiceScript, name) : undefined,
+    voiceScript: masterVoice,
     paragraphs,
     coverPrompt: result.metadata.coverPrompt.split(HERO_TOKEN).join('the child'),
     estimatedDuration: result.story.estimatedDurationSeconds,

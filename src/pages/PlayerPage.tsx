@@ -45,7 +45,7 @@ export function PlayerPage({ id }: { id: string }) {
 function Player({ story }: { story: Story }) {
   const { t, formatTime } = useI18n();
   const { settings, saveStory, toggleFavorite, showToast, updateSettings } = useStore();
-  const { engine, state } = useNarration(story, story.voiceId ?? settings.voiceId);
+  const { engine, state } = useNarration(story, story.voiceId ?? settings.voiceId, settings.narrationSpeed);
   const [readAlong, setReadAlong] = useState(settings.readAlong);
   const [celebrate, setCelebrate] = useState(false);
   const [askLeave, setAskLeave] = useState(false);
@@ -190,6 +190,20 @@ function Player({ story }: { story: Story }) {
             <li className="pill"><Icon name="clock" size={15} />{t('common.minutes', { n: minutes })}</li>
             <li className="pill">{LANGUAGES[story.language].nativeName}</li>
           </ul>
+
+          <div className="speed-control" role="group" aria-label={t('player.speed')}>
+            {(['normal', 'calm', 'very-calm'] as const).map((speed) => (
+              <button
+                key={speed}
+                className="speed-control__btn"
+                data-active={settings.narrationSpeed === speed}
+                onClick={() => updateSettings({ narrationSpeed: speed })}
+                aria-pressed={settings.narrationSpeed === speed}
+              >
+                {t(`player.speed_${speed.replace('-', '_')}`)}
+              </button>
+            ))}
+          </div>
 
           <div className="player__controls">
             <button className="icon-btn icon-btn--light icon-btn--large" onClick={() => engine?.restart()} aria-label={t('player.restart')} disabled={!engine}>

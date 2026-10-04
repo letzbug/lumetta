@@ -136,7 +136,11 @@
     "newStory": "Créer une autre histoire",
     "toLibrary": "Nos histoires",
     "unsavedLeave": "Cette histoire n’est pas encore enregistrée. Enregistrez-la pour la réécouter plus tard.",
-    "leave": "Partir sans enregistrer"
+    "leave": "Partir sans enregistrer",
+    "speed": "Rythme de narration",
+    "speed_normal": "Normal",
+    "speed_calm": "Calme",
+    "speed_very_calm": "Très calme"
   },
   "library": {
     "title": "Nos histoires",

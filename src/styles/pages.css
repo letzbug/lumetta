@@ -616,6 +616,9 @@
   font-style: italic;
   color: var(--moon-soft);
 }
+.speed-control { display: inline-flex; align-items: center; gap: 4px; margin-top: 12px; padding: 4px; border-radius: 999px; background: rgba(255, 244, 228, 0.1); border: 1px solid rgba(255, 244, 228, 0.14); }
+.speed-control__btn { min-height: 36px; padding: 7px 12px; border-radius: 999px; color: var(--moon-soft); font-size: var(--step--1); transition: background-color var(--t-fast) ease, color var(--t-fast) ease; }
+.speed-control__btn[data-active='true'] { background: rgba(255, 181, 77, 0.2); color: #fff3dc; }
 .player__controls {
   display: flex;
   align-items: center;

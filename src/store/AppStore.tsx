@@ -7,6 +7,7 @@ import { logTechnical } from '../services/apiClient';
 import { sanitizeStories } from '../utils/storySanitizer';
 
 export type MotionPreference = 'system' | 'reduced' | 'full';
+export type NarrationSpeed = 'normal' | 'calm' | 'very-calm';
 
 export interface Settings {
   uiLanguage: LanguageCode;
@@ -14,6 +15,7 @@ export interface Settings {
   voiceId: VoiceId;
   motion: MotionPreference;
   readAlong: boolean;
+  narrationSpeed: NarrationSpeed;
 }
 
 /** The parent's story wishes while moving through the creation steps. Kept in memory only. */
@@ -58,7 +60,7 @@ const StoreContext = createContext<Store | null>(null);
 
 function initialSettings(): Settings {
   const lang = detectInitialLanguage();
-  const s = loadSettings<Settings>({ uiLanguage: lang, storyLanguage: lang, voiceId: 'warm-female', motion: 'system', readAlong: true });
+  const s = loadSettings<Settings>({ uiLanguage: lang, storyLanguage: lang, voiceId: 'warm-female', motion: 'system', readAlong: true, narrationSpeed: 'normal' });
   // never start in a language that is not enabled (e.g. lb before launch)
   if (!LANGUAGES[s.uiLanguage]?.uiEnabled) s.uiLanguage = lang;
   if (!LANGUAGES[s.storyLanguage]?.storyEnabled) s.storyLanguage = s.uiLanguage;

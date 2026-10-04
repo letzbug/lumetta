@@ -136,7 +136,11 @@
     "newStory": "Neue Geschichte erschaffen",
     "toLibrary": "Unsere Geschichten",
     "unsavedLeave": "Diese Geschichte ist noch nicht gespeichert. Speichere sie, um sie später wieder zu hören.",
-    "leave": "Ohne Speichern verlassen"
+    "leave": "Ohne Speichern verlassen",
+    "speed": "Erzähltempo",
+    "speed_normal": "Normal",
+    "speed_calm": "Ruhig",
+    "speed_very_calm": "Sehr ruhig"
   },
   "library": {
     "title": "Unsere Geschichten",

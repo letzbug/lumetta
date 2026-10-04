@@ -149,7 +149,8 @@ export function SettingsPage({ section }: { section?: string }) {
           </p>
           <p className="about-credits">
             {t('about.idea')}<br />
-            {t('about.builtBy')} <a href="https://frankandcameron.com" target="_blank" rel="noreferrer">Frank &amp; Cameron</a>
+            {t('about.builtBy')} <a href="https://frankandcameron.com" target="_blank" rel="noreferrer">Frank &amp; Cameron</a><br />
+            © 2026 Frank G. – Lumetta. All rights reserved.
           </p>
         </div>
       </section>

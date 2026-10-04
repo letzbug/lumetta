@@ -30,7 +30,7 @@ export async function createNarration(story: Story, voiceId: VoiceId): Promise<N
       async () => {
         const cached = await getCachedAudio(key);
         if (cached) return cached;
-        const blob = await postForBlob('/tts', { text: story.story, language: story.language, voiceId, rate: band.ttsRate });
+        const blob = await postForBlob('/tts', { text: story.voiceScript || story.story, language: story.language, voiceId, rate: band.ttsRate });
         void putCachedAudio(key, blob);
         return blob;
       },

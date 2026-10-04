@@ -111,6 +111,7 @@ async function runEfficient(req: EngineRequest, provider: LlmProvider, hooks: En
       language: req.language,
       age: req.child?.age ?? 6,
       text: story.text,
+      voiceScript: story.voiceScript,
       estimatedDurationSeconds: estimateDurationSeconds(story.text, req.child?.age ?? 6),
     },
     metadata: {
@@ -209,6 +210,7 @@ async function runGranular(req: EngineRequest, provider: LlmProvider, hooks: Eng
       language: req.language,
       age: req.child?.age ?? 6,
       text: story.text,
+      voiceScript: story.voiceScript,
       estimatedDurationSeconds: estimateDurationSeconds(story.text, req.child?.age ?? 6),
     },
     metadata: {

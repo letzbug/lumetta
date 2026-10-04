@@ -117,6 +117,8 @@ export interface SceneSketch {
 export interface WrittenStory {
   title: string;
   text: string;
+  /** Same story prepared for expressive TTS. May add delivery cues but must not change the spoken wording. */
+  voiceScript?: string;
   summary: string;
   coverScene: string;
   scenes?: SceneSketch[];
@@ -136,6 +138,7 @@ export interface EngineResult {
     language: LanguageCode;
     age: number;
     text: string;
+    voiceScript?: string;
     estimatedDurationSeconds: number;
   };
   metadata: {
@@ -296,6 +299,7 @@ export function validateWrittenStory(raw: unknown): WrittenStory {
   return {
     title: need('writer', str(raw.title), 'title'),
     text,
+    voiceScript: str(raw.voiceScript) || undefined,
     summary: str(raw.summary),
     coverScene: str(raw.coverScene),
     scenes,

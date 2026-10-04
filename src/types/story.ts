@@ -70,6 +70,8 @@ export interface GeneratedStory {
   title: string;
   summary: string;
   story: string;
+  /** Hidden expressive narration script; never rendered as story text. */
+  voiceScript?: string;
   paragraphs: string[];
   coverPrompt: string;
   estimatedDuration: number; // seconds

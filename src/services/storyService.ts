@@ -153,6 +153,7 @@ function toStory(result: EngineResult, req: StoryRequest, name: string, scene?: 
     title: finalizeText(result.story.title, name).trim(),
     summary: finalizeText(result.metadata.summary ?? '', name),
     story: paragraphs.join('\n\n'),
+    voiceScript: result.story.voiceScript ? finalizeText(result.story.voiceScript, name) : undefined,
     paragraphs,
     coverPrompt: result.metadata.coverPrompt.split(HERO_TOKEN).join('the child'),
     estimatedDuration: result.story.estimatedDurationSeconds,

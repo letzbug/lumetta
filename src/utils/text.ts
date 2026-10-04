@@ -50,9 +50,17 @@ export function splitParagraphs(story: string): string[] {
 /** Remove expressive TTS direction tags while preserving every story word. */
 export function stripVoiceCues(text: string): string {
   return text
-    .replace(/\[(?:pause|whisper|softly|excited|surprised|sad|giggle|laugh|calm|warmly|slowly)\]/gi, '')
+    // Voice providers/models may emit short aliases such as [d] as well as
+    // named performance directions. None of these belong in the reading text.
+    .replace(/\[[^\]\n]{1,40}\]/g, '')
     .replace(/[ \t]+/g, ' ')
     .replace(/ *\n */g, '\n')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
+}
+
+/** Compare spoken wording while ignoring whitespace only. */
+export function sameSpokenWords(a: string, b: string): boolean {
+  const normalise = (value: string) => stripVoiceCues(value).replace(/\s+/g, ' ').trim();
+  return normalise(a) === normalise(b);
 }

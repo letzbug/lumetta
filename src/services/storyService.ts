@@ -4,7 +4,7 @@ import { createCover, sceneFor } from './imageService';
 import { createIllustratedCover } from './demo/coverArt';
 import { getBackendStatus, logTechnical, ServiceError } from './apiClient';
 import { screenText } from './safetyService';
-import { splitParagraphs, stripVoiceCues } from '../utils/text';
+import { sameSpokenWords, splitParagraphs, stripVoiceCues } from '../utils/text';
 import { runStoryEngine, type EngineStage } from './storyEngine/storyEngine';
 import { buildExample } from './storyEngine/demo/demoEngine';
 import { RemoteProvider } from './storyEngine/provider';
@@ -135,7 +135,10 @@ export async function createStory(req: StoryRequest, opts: CreateStoryOptions = 
   const name = engineReq.child?.firstName ?? '';
   const story = toStory(result, req, name);
   emit('magic');
-  story.cover = await createCover(story, req, status.image);
+  // Always try the remote cover on a live backend. /health is cached for the
+  // session and may still say image=false immediately after a Worker upgrade.
+  // createCover() safely falls back if /image is genuinely unavailable.
+  story.cover = await createCover(story, req, !APP_CONFIG.demoModeForced);
   const minimum = APP_CONFIG.demoStageMs * 3;
   const elapsed = Date.now() - started;
   if (elapsed < minimum) await wait(minimum - elapsed);
@@ -150,8 +153,15 @@ function toStory(result: EngineResult, req: StoryRequest, name: string, scene?: 
   // One master narration: the expressive script is authoritative. The visible
   // story is derived only by removing performance cues, so Eve can never skip
   // words that the child sees on the page.
-  const masterVoice = finalizeText(result.story.voiceScript || result.story.text, name);
-  const visibleText = stripVoiceCues(masterVoice);
+  const cleanStoryText = finalizeText(result.story.text, name);
+  const candidateVoice = result.story.voiceScript ? finalizeText(result.story.voiceScript, name) : '';
+  // Never let model instructions, missing sentences or added prose leak into the
+  // book. An expressive script is accepted only when removing its cues yields
+  // exactly the same spoken words as the canonical story text.
+  const masterVoice = candidateVoice && sameSpokenWords(candidateVoice, cleanStoryText)
+    ? candidateVoice
+    : cleanStoryText;
+  const visibleText = stripVoiceCues(cleanStoryText);
   const paragraphs = splitParagraphs(visibleText);
   if (!paragraphs.length) throw new ServiceError('empty_story', 'Engine returned no text');
   const generated: GeneratedStory = {

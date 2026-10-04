@@ -59,9 +59,11 @@ export default {
         const body = await request.json();
         const text = String(body.text ?? "").trim();
         if (!text) return Response.json({ error: "empty_text" }, { status: 400, headers: cors });
-        const allowedVoices = ["ara", "eve", "leo", "rex", "sal"];
-        const requestedVoice = String(body.voice || body.voiceId || body.voice_id || "eve").toLowerCase();
-        const voice = allowedVoices.includes(requestedVoice) ? requestedVoice : "eve";
+        const allowedVoices = ["ara", "eve", "leo", "rex", "sal", "altair"];
+        const voiceAliases = { "warm-female": "eve", "warm-male": "altair", "neutral": "ara" };
+        const requestedVoice = String(body.voice || body.voiceId || body.voice_id || "warm-female").toLowerCase();
+        const mappedVoice = voiceAliases[requestedVoice] || requestedVoice;
+        const voice = allowedVoices.includes(mappedVoice) ? mappedVoice : "eve";
         const speed = Math.max(0.7, Math.min(1.5, Number(body.speed) || 1));
         const language = String(body.language || "auto");
         const withTimestamps = body.withTimestamps === true;

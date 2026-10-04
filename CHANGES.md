@@ -63,3 +63,9 @@ npm run test:engine
 npm run build && npm run preview
 ```
 Open `/lumetta/` and test: George → 6 → "red car" → Surprise me → Create.
+
+## 2026-10-04 — Honest voice UI, thematic covers, real player duration
+- Removed placeholder male/neutral voice choices while xAI Eve is the only real studio narrator.
+- Normalizes old voice settings to the current Lumetta narrator.
+- Live stories now derive a small local cover scene from title/cover prompt (cup, vehicle, robot, castle, space, ocean, dinosaur, dragon, cat, digger, park, crocodile) instead of always using the same abstract cover.
+- Player duration badge switches to the real loaded audio duration, so a 1:56 narration displays about 2 min rather than a stale text estimate.

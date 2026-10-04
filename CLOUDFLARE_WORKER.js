@@ -12,9 +12,45 @@ export default {
 
     if (request.method === "GET" && (url.pathname === "/health" || url.pathname === "/")) {
       return Response.json({
-        story: Boolean(env.MISTRAL_API_KEY), image: false, tts: Boolean(env.XAI_API_KEY),
-        providers: { story: env.MISTRAL_API_KEY ? "mistral" : "demo", image: "demo", tts: env.XAI_API_KEY ? "xai" : "browser" },
+        story: Boolean(env.MISTRAL_API_KEY), image: Boolean(env.XAI_API_KEY), tts: Boolean(env.XAI_API_KEY),
+        providers: { story: env.MISTRAL_API_KEY ? "mistral" : "demo", image: env.XAI_API_KEY ? "xai" : "demo", tts: env.XAI_API_KEY ? "xai" : "browser" },
       }, { headers: cors });
+    }
+
+    if (request.method === "POST" && url.pathname === "/image") {
+      if (!env.XAI_API_KEY) return Response.json({ error: "image_unavailable" }, { status: 503, headers: cors });
+      try {
+        const body = await request.json();
+        const prompt = String(body.prompt ?? "").trim();
+        if (!prompt) return Response.json({ error: "empty_prompt" }, { status: 400, headers: cors });
+
+        const xai = await fetch("https://api.x.ai/v1/images/generations", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${env.XAI_API_KEY}` },
+          body: JSON.stringify({
+            model: "grok-imagine-image-2.0",
+            prompt: prompt.slice(0, 8000),
+            n: 1,
+            aspect_ratio: "3:4",
+            resolution: "1k",
+            quality: "low",
+            response_format: "b64_json",
+          }),
+        });
+        if (!xai.ok) {
+          const detail = await xai.text(); console.error("xAI image error", xai.status, detail);
+          return Response.json({ error: "image_provider_failed", status: xai.status }, { status: 502, headers: cors });
+        }
+        const data = await xai.json();
+        const first = data?.data?.[0];
+        const b64 = first?.b64_json;
+        if (!b64) return Response.json({ error: "empty_image_response" }, { status: 502, headers: cors });
+        const mime = first?.mime_type || "image/jpeg";
+        return Response.json({ dataUrl: `data:${mime};base64,${b64}` }, { headers: { ...cors, "Cache-Control": "private, max-age=86400" } });
+      } catch (error) {
+        console.error("Lumetta image error", error);
+        return Response.json({ error: "image_service_error" }, { status: 500, headers: cors });
+      }
     }
 
     if (request.method === "POST" && url.pathname === "/tts") {

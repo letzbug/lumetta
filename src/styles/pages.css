@@ -1067,6 +1067,18 @@
   max-width: 62ch;
   color: var(--ink-soft);
 }
+.about-credits {
+  margin-top: 28px;
+  color: var(--ink-soft);
+  font-size: 0.9rem;
+  line-height: 1.65;
+}
+.about-credits a {
+  color: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
 
 /* ── demo mode: honest notice + explicitly chosen examples ── */
 .creating--demo .creating__inner {

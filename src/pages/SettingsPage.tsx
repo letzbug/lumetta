@@ -126,6 +126,10 @@ export function SettingsPage({ section }: { section?: string }) {
             <br />
             {t('about.guidance', { v: GUIDANCE.version })}
           </p>
+          <p className="about-credits">
+            {t('about.idea')}<br />
+            {t('about.builtBy')} <a href="https://frankandcameron.com" target="_blank" rel="noreferrer">Frank &amp; Cameron</a>
+          </p>
         </div>
       </section>
     </AppChrome>

@@ -208,7 +208,9 @@
   "about": {
     "body": "Lumetta creates short, illustrated stories that start with what a child loves. It is a prototype, made to be explored together with parents, teachers and specialists.",
     "guidance": "Story guidance principles, version {v}",
-    "version": "Version {v}"
+    "version": "Version {v}",
+    "idea": "Idea: Andreas Rhein",
+    "builtBy": "Development & design:"
   },
   "languages": {
     "lbSoon": "Lëtzebuergesch — coming soon"

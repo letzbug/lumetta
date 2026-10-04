@@ -208,7 +208,9 @@
   "about": {
     "body": "Lumetta erschafft kurze, illustrierte Geschichten, die bei dem beginnen, was ein Kind liebt. Es ist ein Prototyp, gemacht, um ihn gemeinsam mit Eltern, Lehrkräften und Fachleuten zu erkunden.",
     "guidance": "Prinzipien der Geschichtenbegleitung, Version {v}",
-    "version": "Version {v}"
+    "version": "Version {v}",
+    "idea": "Idee: Andreas Rhein",
+    "builtBy": "Entwicklung & Design:"
   },
   "languages": {
     "lbSoon": "Lëtzebuergesch – kommt bald"

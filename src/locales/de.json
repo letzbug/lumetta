@@ -216,11 +216,11 @@
     "lbSoon": "Lëtzebuergesch – kommt bald"
   },
   "voices": {
-    "warmFemale": "Warme Frauenstimme",
+    "warmFemale": "Frauenstimme · Eve",
     "warmFemaleDesc": "Weich und nah, wie Vorlesen auf dem Sofa",
-    "warmMale": "Warme Männerstimme",
+    "warmMale": "Männerstimme · Altair",
     "warmMaleDesc": "Ruhig und tief, schön zum Einschlafen",
-    "neutral": "Erzählstimme",
+    "neutral": "Erzählstimme · Ara",
     "neutralDesc": "Klar und gleichmäßig, die Geschichte führt"
   },
   "moods": {

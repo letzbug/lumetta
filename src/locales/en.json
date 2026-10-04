@@ -216,11 +216,11 @@
     "lbSoon": "Lëtzebuergesch — coming soon"
   },
   "voices": {
-    "warmFemale": "Warm female voice",
+    "warmFemale": "Female voice · Eve",
     "warmFemaleDesc": "Soft and close, like reading on the sofa",
-    "warmMale": "Warm male voice",
+    "warmMale": "Male voice · Altair",
     "warmMaleDesc": "Calm and deep, good for bedtime",
-    "neutral": "Storyteller",
+    "neutral": "Storyteller · Ara",
     "neutralDesc": "Clear and even, lets the story lead"
   },
   "moods": {

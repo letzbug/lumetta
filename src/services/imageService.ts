@@ -42,27 +42,45 @@ export function sceneFor(story: GeneratedStory, req: StoryRequest): CoverScene {
 
 }
 
+const INTEREST_EN: Record<string, string> = {
+  dinosaurs: 'dinosaurs', space: 'outer space, stars and planets', animals: 'animals', magic: 'magic',
+  ocean: 'the ocean', adventure: 'adventure', nature: 'nature', science: 'science', music: 'music',
+  dragons: 'dragons', friendship: 'friendship', vehicles: 'vehicles',
+};
+
 export function buildCoverPrompt(story: GeneratedStory, req: StoryRequest): string {
   const mood = sceneFor(story, req).mood;
+  const required = req.interests.map((id) => INTEREST_EN[id] || id).join(', ');
   return [
     COVER_STYLE,
-    `Scene: ${story.coverPrompt}.`,
+    `Main story scene: ${story.coverPrompt || story.title}.`,
+    required ? `MANDATORY VISUAL ELEMENTS: ${required}. Every one of these central interests must be clearly and unmistakably visible in the illustration, not merely implied.` : '',
+    `Show the central premise of the story, not an incidental side scene.`,
+    `The prompt and mandatory elements above are authoritative even when the story itself is written in French, German or English.`,
     `Mood: ${mood}. Suitable for a ${req.childAge}-year-old.`,
     `Portrait format, generous calm space in the lower third for a title.`,
-  ].join(' ');
+  ].filter(Boolean).join(' ');
 }
 
 export async function createCover(story: GeneratedStory, req: StoryRequest, remote: boolean): Promise<CoverImage> {
   const scene = sceneFor(story, req);
   const illustrated = createIllustratedCover(scene);
   if (!remote) return illustrated;
-  try {
-    const result = await postJson<{ dataUrl: string }>('/image', { prompt: buildCoverPrompt(story, req) }, 120_000);
-    if (!result?.dataUrl?.startsWith('data:image/')) throw new Error('invalid image payload');
-    return { kind: 'image', src: result.dataUrl, palette: illustrated.palette };
-  } catch (err) {
-    // A missing picture must never break the story: fall back to the illustrated cover.
-    logTechnical('image', err);
-    return illustrated;
+  const prompt = buildCoverPrompt(story, req);
+  let lastError: unknown;
+  // Image generation can occasionally fail transiently. Retry once before using
+  // the local illustration; this applies identically to DE, FR and EN stories.
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      const result = await postJson<{ dataUrl: string }>('/image', { prompt }, 120_000);
+      if (!result?.dataUrl?.startsWith('data:image/')) throw new Error('invalid image payload');
+      return { kind: 'image', src: result.dataUrl, palette: illustrated.palette };
+    } catch (err) {
+      lastError = err;
+      if (attempt === 0) await new Promise((resolve) => setTimeout(resolve, 700));
+    }
   }
+  // A missing picture must never break the story: fall back to the illustrated cover.
+  logTechnical('image', lastError);
+  return illustrated;
 }

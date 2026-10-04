@@ -15,9 +15,9 @@ export interface VoiceConfig {
 }
 
 export const VOICES: VoiceConfig[] = [
-  // Lumetta currently has one real studio narrator: xAI Eve. Keep one honest
-  // choice in the app until additional studio voices are deliberately added.
   { id: 'warm-female', labelKey: 'voices.warmFemale', descriptionKey: 'voices.warmFemaleDesc', browser: { pitch: 1.05, rateFactor: 1, preferGender: 'female' } },
+  { id: 'warm-male', labelKey: 'voices.warmMale', descriptionKey: 'voices.warmMaleDesc', browser: { pitch: 0.92, rateFactor: 0.98, preferGender: 'male' } },
+  { id: 'neutral', labelKey: 'voices.neutral', descriptionKey: 'voices.neutralDesc', browser: { pitch: 1, rateFactor: 0.98, preferGender: 'female' } },
 ];
 
 /** Name fragments of common system voices, used to guess voice character in the demo fallback. */
